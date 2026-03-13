@@ -4,15 +4,30 @@ AiVox JavaScript / TypeScript SDK，支持 TTS、STT、实时语音转写和语�
 
 ## 安装
 
-**先构建 SDK：**
+### 从 GitHub 安装（推荐）
 
 ```bash
-cd sdk/javascript
-npm install
-npm run build   # 输出 dist/index.js、dist/index.mjs、dist/index.d.ts
+# npm
+npm install @aivox/sdk@github:AudarAI/webapp-jssdk
+
+# pnpm
+pnpm add @aivox/sdk@github:AudarAI/webapp-jssdk
+
+# yarn
+yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
 ```
 
-**在项目中引用本地路径：**
+或在 `package.json` 中：
+
+```json
+{
+  "dependencies": {
+    "@aivox/sdk": "github:AudarAI/webapp-jssdk"
+  }
+}
+```
+
+### 从本地路径安装
 
 ```bash
 # npm
@@ -20,9 +35,9 @@ npm install /path/to/AiVox2/sdk/javascript
 
 # pnpm
 pnpm add /path/to/AiVox2/sdk/javascript
-
-# 或在 package.json 中直接写相对路径
 ```
+
+或在 `package.json` 中：
 
 ```json
 {
