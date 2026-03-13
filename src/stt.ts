@@ -193,7 +193,7 @@ export class SttApi {
   ): Promise<SttWebSocket> {
     const baseUrl = this._http.getBaseUrl();
     const wsBase = baseUrl.replace(/^http/, "ws");
-    const token = await this._http.getToken();
+    const token = await this._http.getWebSocketToken();
 
     const params = new URLSearchParams({ token });
     if (options.provider) params.set("provider", options.provider);

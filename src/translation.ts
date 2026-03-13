@@ -261,7 +261,7 @@ export class TranslationApi {
   ): Promise<TranslationWebSocket> {
     const baseUrl = this._http.getBaseUrl();
     const wsBase = baseUrl.replace(/^http/, "ws");
-    const token = await this._http.getToken();
+    const token = await this._http.getWebSocketToken();
 
     const params = new URLSearchParams({ token, target_lang: options.target_lang });
     if (options.source_lang) params.set("source_lang", options.source_lang);

@@ -1,6 +1,16 @@
 import { AiVoxClientConfig, TokenData } from "./types";
 import { ApiError, AuthenticationError, InsufficientBalanceError, RateLimitedError } from "./errors";
 
+function parseJwtExp(jwt: string): number | null {
+  try {
+    const b64 = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64));
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
 class TokenManager {
   private _token: string | null = null;
   private _expiresAt: number | null = null;
@@ -69,11 +79,18 @@ class TokenManager {
 export class HttpClient {
   private readonly _baseUrl: string;
   readonly _tokenManager: TokenManager;
+  private readonly _wsTokenManager: TokenManager | null;
   private readonly _fetch: typeof globalThis.fetch;
 
-  constructor(baseUrl: string, tokenManager: TokenManager, fetchImpl: typeof globalThis.fetch) {
+  constructor(
+    baseUrl: string,
+    tokenManager: TokenManager,
+    fetchImpl: typeof globalThis.fetch,
+    wsTokenManager?: TokenManager,
+  ) {
     this._baseUrl = baseUrl.replace(/\/$/, "");
     this._tokenManager = tokenManager;
+    this._wsTokenManager = wsTokenManager ?? null;
     this._fetch = fetchImpl;
   }
 
@@ -81,9 +98,16 @@ export class HttpClient {
     return this._baseUrl;
   }
 
-  /** Get the current session token (fetches/refreshes if needed). */
+  /** Get the current token for HTTP requests (fetches/refreshes if needed). */
   getToken(): Promise<string> {
     return this._tokenManager.getToken();
+  }
+
+  /** Returns session token for WebSocket. Falls back to getToken() for publishableKey mode. */
+  getWebSocketToken(): Promise<string> {
+    return this._wsTokenManager
+      ? this._wsTokenManager.getToken()
+      : this._tokenManager.getToken();
   }
 
   async request<T = unknown>(
@@ -163,34 +187,90 @@ export class AiVoxClient {
     const threshold = config.refreshThresholdSeconds ?? 30;
     const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
-    let tokenProvider: (() => Promise<TokenData>) | null = null;
+    // Exactly one auth mode must be configured
+    const authModes = [
+      config.publishableKey != null,
+      config.accessToken != null,
+      config.apiKey != null,
+    ].filter(Boolean).length;
+    if (authModes !== 1) {
+      throw new AuthenticationError(
+        "Exactly one authentication mode must be configured: publishableKey, accessToken, or apiKey."
+      );
+    }
 
-    if (config.tokenProvider) {
-      tokenProvider = config.tokenProvider;
-    } else if (config.publishableKey) {
+    let tokenProvider: (() => Promise<TokenData>) | null = null;
+    let wsTokenProvider: (() => Promise<TokenData>) | null = null;
+
+    if (config.publishableKey) {
       const pk = config.publishableKey;
       const baseUrl = config.baseUrl.replace(/\/$/, "");
       tokenProvider = async () => {
         const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${pk}`,
-            "Content-Type": "application/json",
-          },
+          headers: { Authorization: `Bearer ${pk}`, "Content-Type": "application/json" },
           body: JSON.stringify({ ttl: 300 }),
         });
         const body = await res.json();
-        if (body.code !== 0) throw new Error(body.message ?? "Failed to obtain session token");
+        if (body.code !== 0) {
+          throw new AuthenticationError(body.message ?? "Failed to obtain session token");
+        }
+        return body.data as TokenData;
+      };
+    } else if (config.accessToken) {
+      const accessTokenInput = config.accessToken;
+      const baseUrl = config.baseUrl.replace(/\/$/, "");
+      const getJwt = typeof accessTokenInput === "function"
+        ? accessTokenInput
+        : () => Promise.resolve(accessTokenInput as string);
+
+      tokenProvider = async () => {
+        const jwt = await getJwt();
+        if (!jwt) throw new AuthenticationError("accessToken resolved to an empty string");
+        const exp = parseJwtExp(jwt);
+        return { token: jwt, expires_in: 3600, ...(exp != null ? { expires_at: exp } : {}) };
+      };
+
+      wsTokenProvider = async () => {
+        const jwt = await getJwt();
+        if (!jwt) throw new AuthenticationError("accessToken resolved to an empty string");
+        const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ttl: 300 }),
+        });
+        const body = await res.json();
+        if (body.code !== 0) {
+          throw new AuthenticationError(body.message ?? "Failed to exchange access token for session token");
+        }
+        return body.data as TokenData;
+      };
+    } else if (config.apiKey) {
+      const key = config.apiKey;
+      const baseUrl = config.baseUrl.replace(/\/$/, "");
+
+      tokenProvider = async () => ({ token: key, expires_in: 86400 });
+
+      wsTokenProvider = async () => {
+        const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ttl: 300 }),
+        });
+        const body = await res.json();
+        if (body.code !== 0) {
+          throw new AuthenticationError(body.message ?? "Failed to obtain session token");
+        }
         return body.data as TokenData;
       };
     }
 
     this._tokenManager = new TokenManager(tokenProvider, threshold);
 
-    if (config.sessionToken) {
-      this._tokenManager.setStatic(config.sessionToken);
-    }
+    const wsTokenManager = wsTokenProvider
+      ? new TokenManager(wsTokenProvider, threshold)
+      : undefined;
 
-    this.http = new HttpClient(config.baseUrl, this._tokenManager, fetchImpl);
+    this.http = new HttpClient(config.baseUrl, this._tokenManager, fetchImpl, wsTokenManager);
   }
 }

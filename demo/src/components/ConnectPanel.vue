@@ -8,19 +8,21 @@ const emit = defineEmits<{ connected: [] }>();
 const { connect, connected } = useClient();
 
 const baseUrl   = ref("http://localhost:8004");
-const authMode  = ref<"apikey" | "pk" | "session">("pk");
+const authMode  = ref<"pk" | "accessToken" | "apiKey">("pk");
 const cred      = ref("pk_IHDQAHeZxu6uJ66FkvVor2qGAU-1e8bMuUDZ7i0PIK4");
 const loading   = ref(false);
 const errMsg    = ref("");
 
 const credLabel = computed(() => ({
-  apikey:  "API Key",
-  pk:      "Publishable Key"
+  pk:          "Publishable Key",
+  accessToken: "Access Token (JWT)",
+  apiKey:      "API Key",
 }[authMode.value]));
 
 const credPlaceholder = computed(() => ({
-  apikey:  "ak_xxx",
-  pk:      "pk_xxx",
+  pk:          "pk_xxx",
+  accessToken: "eyJ...",
+  apiKey:      "ak_xxx",
 }[authMode.value]));
 
 async function handleConnect() {
@@ -36,24 +38,12 @@ async function handleConnect() {
     const url = baseUrl.value.trim();
     const c   = cred.value.trim();
 
-    if (authMode.value === "session") {
-      cfg = { baseUrl: url, sessionToken: c };
-    } else if (authMode.value === "pk") {
+    if (authMode.value === "pk") {
       cfg = { baseUrl: url, publishableKey: c };
+    } else if (authMode.value === "accessToken") {
+      cfg = { baseUrl: url, accessToken: c };
     } else {
-      cfg = {
-        baseUrl: url,
-        tokenProvider: async () => {
-          const res = await fetch(`${url}/v1/speech/session-tokens`, {
-            method:  "POST",
-            headers: { Authorization: `Bearer ${c}`, "Content-Type": "application/json" },
-            body:    JSON.stringify({ ttl: 300 }),
-          });
-          const body = await res.json();
-          if (body.code !== 0) throw new Error(body.message ?? "获取 session token 失败");
-          return body.data;
-        },
-      };
+      cfg = { baseUrl: url, apiKey: c };
     }
 
     await connect(cfg);
@@ -76,9 +66,9 @@ async function handleConnect() {
     <div class="field">
       <label>认证模式</label>
       <select v-model="authMode" :disabled="connected">
-        <option value="apikey">API Key → Session Token</option>
         <option value="pk">Publishable Key</option>
-        <option value="session">Session Token</option>
+        <option value="accessToken">Access Token (JWT)</option>
+        <option value="apiKey">API Key</option>
       </select>
     </div>
 

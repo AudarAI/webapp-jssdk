@@ -1,4 +1,4 @@
-import { ref, readonly } from "vue";
+import { shallowRef, ref, readonly, markRaw } from "vue";
 import { createAiVoxClient, type AiVoxClientConfig } from "@aivox/sdk";
 import type { AiVoxClient, TtsApi, SttApi, TranslationApi } from "@aivox/sdk";
 
@@ -9,7 +9,7 @@ export type ConnectedClient = AiVoxClient & {
 };
 
 // Module-level singleton — shared across all components
-const _client = ref<ConnectedClient | null>(null);
+const _client = shallowRef<ConnectedClient | null>(null);
 const _connected = ref(false);
 
 export function useClient() {
@@ -17,7 +17,7 @@ export function useClient() {
     const c = createAiVoxClient(cfg) as ConnectedClient;
     // Probe connectivity
     await c.tts.listSpeakers();
-    _client.value = c;
+    _client.value = markRaw(c);
     _connected.value = true;
   }
 

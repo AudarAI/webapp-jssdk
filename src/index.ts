@@ -59,15 +59,19 @@ import type { AiVoxClientConfig } from "./types";
  * Convenience factory that creates an AiVoxClient with TTS, STT, and Translation APIs.
  *
  * @example
- * // Publishable key (no backend required, Origin validated server-side)
+ * // Publishable key — all requests go through a session token
  * const client = createAiVoxClient({ baseUrl: 'https://api.aivox.com', publishableKey: 'pk_xxx' });
  *
  * @example
- * // Token provider (backend-assisted, recommended for production)
+ * // SSO / OAuth2 access token (Keycloak JWT)
  * const client = createAiVoxClient({
  *   baseUrl: 'https://api.aivox.com',
- *   tokenProvider: async () => fetch('/api/speech-token').then(r => r.json()),
+ *   accessToken: async () => keycloakAdapter.token,
  * });
+ *
+ * @example
+ * // API key
+ * const client = createAiVoxClient({ baseUrl: 'https://api.aivox.com', apiKey: 'ak_xxx' });
  */
 export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
   tts: TtsApi;

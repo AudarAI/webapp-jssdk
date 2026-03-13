@@ -6,12 +6,25 @@ export interface TokenData {
 
 export interface AiVoxClientConfig {
   baseUrl: string;
-  /** Mode 1: back-end assisted (recommended) */
-  tokenProvider?: () => Promise<TokenData>;
-  /** Mode 2: publishable key – safe to embed in frontend, backend validates Origin */
+  /**
+   * Publishable key (pk_ prefix).
+   * All requests (HTTP and WebSocket) use a short-lived session token (stk_)
+   * automatically obtained from the publishable key.
+   */
   publishableKey?: string;
-  /** Mode 3: static session token (for testing) */
-  sessionToken?: string;
+  /**
+   * SSO / OAuth2 access token (e.g. Keycloak JWT).
+   * HTTP requests use the JWT directly as Bearer token.
+   * WebSocket connections automatically exchange it for a session token (stk_).
+   * Pass a static JWT string or an async function that returns a fresh JWT.
+   */
+  accessToken?: string | (() => Promise<string>);
+  /**
+   * API key (ak_ prefix).
+   * HTTP requests use the key directly as Bearer token.
+   * WebSocket connections automatically exchange it for a session token (stk_).
+   */
+  apiKey?: string;
   /** Seconds before expiry to proactively refresh. Default: 30 */
   refreshThresholdSeconds?: number;
   /** Custom fetch implementation (e.g. node-fetch in Node.js environments) */

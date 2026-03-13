@@ -30,11 +30,7 @@ yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
 ### 从本地路径安装
 
 ```bash
-# npm
 npm install /path/to/AiVox2/sdk/javascript
-
-# pnpm
-pnpm add /path/to/AiVox2/sdk/javascript
 ```
 
 或在 `package.json` 中：
@@ -51,64 +47,63 @@ pnpm add /path/to/AiVox2/sdk/javascript
 
 ## 认证模式
 
-SDK 支持三种认证方式，按推荐程度排序：
+SDK 支持三种认证方式，必须且只能选择其中一种。
 
-### 模式一：tokenProvider（有后端，推荐）
+| 模式 | 配置字段 | HTTP 请求 | WebSocket |
+|---|---|---|---|
+| Publishable Key | `publishableKey` | session token（自动换取） | session token |
+| Access Token | `accessToken` | JWT 直接用 | session token（自动换取） |
+| API Key | `apiKey` | API Key 直接用 | session token（自动换取） |
 
-后端持有 `ak_` 密钥，前端通过自己的接口换取短期 token。密钥**永远不出现**在前端代码中。
+WebSocket 端点只接受短时 session token（`stk_` 前缀），SDK 会在建立连接前自动完成换取，无需手动处理。
+
+### 模式一：publishableKey（前端直连，无需后端）
+
+`pk_` 密钥可安全嵌入前端代码，所有请求（HTTP 和 WebSocket）均自动使用短时 session token。服务端会校验请求 `Origin` 是否在白名单内。
 
 ```typescript
 import { createAiVoxClient } from '@aivox/sdk';
 
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
-  tokenProvider: async () => {
-    const res = await fetch('/your-backend/get-speech-token');
-    return res.json(); // 需返回 { token: 'stk_...', expires_in: 300 }
-  },
+  publishableKey: 'pk_xxx',
 });
 ```
 
-后端示例（Node.js / Express）：
-```typescript
-app.get('/your-backend/get-speech-token', async (req, res) => {
-  const r = await fetch('https://api.aivox.com/v1/speech/session-tokens', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.AIVOX_API_KEY}`, // ak_xxx
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ ttl: 300 }),
-  });
-  res.json((await r.json()).data); // { token, expires_in, expires_at }
-});
-```
-
-### 模式二：publishableKey（无后端）
-
-`pk_` 密钥可安全嵌入前端，服务端会校验请求的 `Origin` 是否在白名单内。
-
-```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
-  publishableKey: 'pk_xxx', // 只能换取 session token，无法直接调用 TTS/STT
-});
-```
-
-> 需先在控制台创建 publishable key 并配置 `allowed_origins`：
+> 需先在控制台创建 publishable key 并配置允许的来源：
 > ```http
 > POST /v1/account/api-keys
 > { "name": "Web App", "key_type": "publishable", "allowed_origins": ["https://myapp.com"] }
 > ```
 
-### 模式三：sessionToken（测试用）
+### 模式二：accessToken（SSO / OAuth2）
 
-直接传入已有的 `stk_` token，不自动刷新。
+适用于已有 Keycloak / OAuth2 体系的场景。HTTP 请求直接携带 JWT，WebSocket 自动换取 session token。
+
+支持传入静态字符串或动态函数（推荐，可随时获取最新 token）：
+
+```typescript
+// 静态 JWT
+const client = createAiVoxClient({
+  baseUrl: 'https://api.aivox.com',
+  accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
+});
+
+// 动态函数（推荐）— 每次刷新时调用
+const client = createAiVoxClient({
+  baseUrl: 'https://api.aivox.com',
+  accessToken: async () => keycloakAdapter.token,
+});
+```
+
+### 模式三：apiKey（服务端 / 测试）
+
+`ak_` 密钥具有完整权限，**不应暴露在浏览器前端**，适合 Node.js 服务端或本地测试。HTTP 请求直接携带 API Key，WebSocket 自动换取 session token。
 
 ```typescript
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
-  sessionToken: 'stk_xxx',
+  apiKey: 'ak_xxx',
 });
 ```
 
@@ -151,10 +146,10 @@ response.body!.pipeTo(
 ### 管理声音
 
 ```typescript
-// 列出可用声音（返回声音名称数组）
+// 列出可用声音
 const names: string[] = await client.tts.listSpeakers();
 
-// 上传自定义声音（transcript 为必填参考文本）
+// 上传自定义声音
 const audioFile = document.querySelector('input[type=file]').files[0];
 await client.tts.addSpeaker('my-voice', audioFile, '这是录音文本', {
   description: '自定义声音描述',
@@ -171,8 +166,6 @@ await client.tts.deleteSpeaker('my-voice');
 ### 转写音频文件
 
 ```typescript
-const audioBlob = ...; // Blob | File
-
 const result = await client.stt.transcribe(audioBlob, {
   language: 'zh',
   forced_alignment: false,
@@ -210,14 +203,12 @@ const stt = await client.stt.connectWebSocket(
     onSegment: ({ text, segment_index }) => console.log('分段:', segment_index, text),
     onFinal:   ({ text })       => console.log('完成:', text),
     onError:   (e)              => console.error(e),
-    onClose:   (e)              => console.log('已断开'),
+    onClose:   ()               => console.log('已断开'),
   },
 );
 
 // 发送 PCM 音频帧（ArrayBuffer 或 Int16Array）
-function sendAudio(pcmBuffer: ArrayBuffer) {
-  stt.sendAudio(pcmBuffer);
-}
+stt.sendAudio(pcmBuffer);
 
 // 结束录音（服务端自动 flush 并关闭）
 stt.stop();
@@ -247,7 +238,7 @@ const result = await client.translation.translate(
     onSttPartial:         ({ text })           => showSubtitle(text),
     onSttFinal:           ({ text })           => console.log('STT:', text),
     onTranslationPartial: ({ text })           => showTranslation(text),
-    onTranslationComplete:({ text, source_lang, target_lang }) => console.log(text),
+    onTranslationComplete:({ text })           => console.log('译文:', text),
     onTtsChunk:           (audio, { format, sample_rate }) => playAudio(audio),
     onTtsComplete:        ({ total_chunks })   => console.log('TTS 完成'),
     onPipelineComplete:   ({ source_text, translated_text }) =>
@@ -276,13 +267,12 @@ const ws = await client.translation.connectWebSocket(
     onSttPartial:         ({ text })       => showSubtitle(text),
     onSttSegment:         ({ text, segment_index }) => console.log('分段:', text),
     onTranslationComplete:({ text, target_lang })   => showTranslation(text),
-    onTtsChunk:           (audio, { format, sample_rate, segment_index }) =>
-      playAudio(audio),
+    onTtsChunk:           (audio, { format, sample_rate }) => playAudio(audio),
     onSegmentComplete:    ({ source_text, translated_text }) =>
       console.log(source_text, '->', translated_text),
     onPipelineComplete:   ({ duration }) => console.log('完成，耗时', duration, 's'),
     onError:              ({ message, stage }) => console.error(stage, message),
-    onClose:              (e) => console.log('已断开'),
+    onClose:              () => console.log('已断开'),
   },
 );
 
@@ -299,21 +289,21 @@ ws.stop();
 
 ```typescript
 import {
+  AuthenticationError,
   InsufficientBalanceError,
   RateLimitedError,
-  AuthenticationError,
   ApiError,
 } from '@aivox/sdk';
 
 try {
   const audio = await client.tts.synthesize('你好');
 } catch (err) {
-  if (err instanceof InsufficientBalanceError) {
+  if (err instanceof AuthenticationError) {
+    console.error('认证失败，请检查凭证');
+  } else if (err instanceof InsufficientBalanceError) {
     console.error('余额不足，请充值');
   } else if (err instanceof RateLimitedError) {
     console.error(`请求过频，请 ${err.retryAfter}s 后重试`);
-  } else if (err instanceof AuthenticationError) {
-    console.error('认证失败，token 已过期');
   } else if (err instanceof ApiError) {
     console.error(`API 错误 ${err.statusCode}: ${err.message}`);
   }
@@ -324,17 +314,15 @@ try {
 
 ## Token 自动刷新
 
-SDK 在每次请求前检查 token 是否即将过期（默认提前 30 秒刷新），并通过互斥锁防止并发请求重复刷新。
+SDK 在每次请求前检查 token 是否即将过期（默认提前 30 秒刷新），通过互斥锁防止并发重复刷新。收到 401 响应时自动清除缓存并重试一次。
 
 ```typescript
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
-  tokenProvider: async () => { /* ... */ },
+  publishableKey: 'pk_xxx',
   refreshThresholdSeconds: 60, // 提前 60 秒刷新（默认 30）
 });
 ```
-
-收到 401 响应时，SDK 会自动清除缓存并重试一次。
 
 ---
 
@@ -347,7 +335,7 @@ import fetch from 'node-fetch';
 
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
-  tokenProvider: async () => { /* ... */ },
+  apiKey: 'ak_xxx',
   fetch: fetch as typeof globalThis.fetch,
 });
 ```
