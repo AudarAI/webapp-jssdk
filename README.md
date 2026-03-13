@@ -106,16 +106,16 @@ const client = createAiVoxClient({
 ```typescript
 const audioBuffer = await client.tts.synthesize('你好，世界', {
   voice: 'zh-CN-female',
-  model: 'tts-1',
-  response_format: 'mp3', // mp3 | opus | aac | flac | wav | pcm
-  speed: 1.0,
+  model: 'tts-1',           // tts-1 | tts-1-hd，默认 tts-1
+  response_format: 'mp3',   // mp3 | opus | aac | flac | wav | pcm
+  speed: 1.0,               // 0.25 ~ 4.0
+  provider: 'flash',        // flash | turbo | pro
 });
 
 // 在浏览器中播放
 const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
 const url = URL.createObjectURL(blob);
-const audio = new Audio(url);
-audio.play();
+new Audio(url).play();
 ```
 
 ### 流式合成
@@ -136,14 +136,12 @@ response.body!.pipeTo(
 ### 管理声音
 
 ```typescript
-// 列出可用声音
-const speakers = await client.tts.listSpeakers();
-const speakers = await client.tts.listSpeakers('provider-name'); // 按 provider 过滤
+// 列出可用声音（返回声音名称数组）
+const names: string[] = await client.tts.listSpeakers();
 
-// 上传自定义声音
+// 上传自定义声音（transcript 为必填参考文本）
 const audioFile = document.querySelector('input[type=file]').files[0];
-await client.tts.addSpeaker('my-voice', audioFile, {
-  transcript: '这是录音文本',
+await client.tts.addSpeaker('my-voice', audioFile, '这是录音文本', {
   description: '自定义声音描述',
 });
 
@@ -162,104 +160,122 @@ const audioBlob = ...; // Blob | File
 
 const result = await client.stt.transcribe(audioBlob, {
   language: 'zh',
-  context: '可选的上下文提示',
   forced_alignment: false,
+  provider: 'flash',  // flash | turbo
 });
 
-console.log(result.text);      // 转写文本
-console.log(result.language);  // 识别语言
-console.log(result.segments);  // 时间戳分段
+console.log(result.text);        // 转写文本
+console.log(result.language);    // 识别语言
+console.log(result.timestamps);  // 词级时间戳（forced_alignment 时有值）
 ```
 
 ### 流式转写（SSE）
 
 ```typescript
-const response = await client.stt.transcribeStream(audioBlob, {
-  language: 'zh',
-});
-
-const reader = response.body!.getReader();
-const decoder = new TextDecoder();
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  console.log(decoder.decode(value));
-}
+const result = await client.stt.transcribeStream(
+  audioBlob,
+  { language: 'zh', provider: 'flash' },
+  {
+    onChunk: (chunk) => console.log('增量:', chunk.text, chunk.chunk_index),
+    onFinal: (chunk) => console.log('最终:', chunk.text),
+    onError: (err)  => console.error(err),
+  },
+);
+// result: { text, language }
 ```
 
 ### 实时转写（WebSocket）
 
 ```typescript
-const ws = await client.stt.connectWebSocket({
-  language: 'zh',
-  provider: 'flash',
-});
+const stt = await client.stt.connectWebSocket(
+  { language: 'zh', provider: 'flash' },
+  {
+    onReady:   ({ session_id }) => console.log('会话:', session_id),
+    onPartial: ({ text })       => console.log('实时:', text),
+    onSegment: ({ text, segment_index }) => console.log('分段:', segment_index, text),
+    onFinal:   ({ text })       => console.log('完成:', text),
+    onError:   (e)              => console.error(e),
+    onClose:   (e)              => console.log('已断开'),
+  },
+);
 
-ws.onopen = () => console.log('已连接');
-ws.onmessage = (e) => console.log('识别结果:', e.data);
-ws.onerror = (e) => console.error('错误:', e);
-
-// 发送音频数据（ArrayBuffer）
+// 发送 PCM 音频帧（ArrayBuffer 或 Int16Array）
 function sendAudio(pcmBuffer: ArrayBuffer) {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(pcmBuffer);
-  }
+  stt.sendAudio(pcmBuffer);
 }
 
-// 结束
-ws.close();
+// 结束录音（服务端自动 flush 并关闭）
+stt.stop();
 ```
 
 ---
 
 ## Translation（语音翻译）
 
-### 翻译音频文件
+### 翻译音频文件（SSE 流水线）
+
+`translate()` 通过 SSE 依次推送 STT → 翻译 → TTS 各阶段事件，方法返回最终结果。
 
 ```typescript
-// 仅返回文字
-const result = await client.translation.translate(audioBlob, {
-  target_lang: 'en',
-  source_lang: 'zh',          // 可选，不传则自动检测
-  translation_mode: 'text',
-});
-console.log(result.text);
+const result = await client.translation.translate(
+  audioBlob,
+  {
+    target_lang: 'en',
+    source_lang: 'zh',          // 可选，不传则自动检测
+    translation_mode: 'llm',    // llm（默认）| mt
+    tts_enabled: true,
+    response_format: 'mp3',
+    voice: 'en-US-female',
+  },
+  {
+    onStatus:             ({ stage, message }) => console.log(stage, message),
+    onSttPartial:         ({ text })           => showSubtitle(text),
+    onSttFinal:           ({ text })           => console.log('STT:', text),
+    onTranslationPartial: ({ text })           => showTranslation(text),
+    onTranslationComplete:({ text, source_lang, target_lang }) => console.log(text),
+    onTtsChunk:           (audio, { format, sample_rate }) => playAudio(audio),
+    onTtsComplete:        ({ total_chunks })   => console.log('TTS 完成'),
+    onPipelineComplete:   ({ source_text, translated_text }) =>
+      console.log(source_text, '->', translated_text),
+    onError:              ({ stage, message }) => console.error(stage, message),
+  },
+);
 
-// 同时合成目标语言语音
-const audioBuffer = await client.translation.translate(audioBlob, {
-  target_lang: 'en',
-  source_lang: 'zh',
-  tts_enabled: true,
-  response_format: 'mp3',
-  voice: 'en-US-female',
-});
+console.log(result.source_text);  // 原文
+console.log(result.text);         // 译文
 ```
 
 ### 实时翻译（WebSocket）
 
 ```typescript
-const ws = await client.translation.connectWebSocket({
-  target_lang: 'en',
-  source_lang: 'zh',
-  tts_enabled: true,
-  translation_mode: 'speech',
-  response_format: 'mp3',
-});
+const ws = await client.translation.connectWebSocket(
+  {
+    target_lang: 'en',
+    source_lang: 'zh',
+    tts_enabled: true,
+    translation_mode: 'llm',
+    response_format: 'mp3',
+  },
+  {
+    onReady:              ({ session_id }) => console.log('会话:', session_id),
+    onSttPartial:         ({ text })       => showSubtitle(text),
+    onSttSegment:         ({ text, segment_index }) => console.log('分段:', text),
+    onTranslationComplete:({ text, target_lang })   => showTranslation(text),
+    onTtsChunk:           (audio, { format, sample_rate, segment_index }) =>
+      playAudio(audio),
+    onSegmentComplete:    ({ source_text, translated_text }) =>
+      console.log(source_text, '->', translated_text),
+    onPipelineComplete:   ({ duration }) => console.log('完成，耗时', duration, 's'),
+    onError:              ({ message, stage }) => console.error(stage, message),
+    onClose:              (e) => console.log('已断开'),
+  },
+);
 
-ws.onopen = () => console.log('已连接');
-ws.onmessage = (e) => {
-  if (e.data instanceof Blob) {
-    // 合成音频数据
-  } else {
-    console.log('翻译结果:', e.data);
-  }
-};
-
-// 发送音频帧
-ws.send(pcmBuffer);
+// 发送 PCM 音频帧
+ws.sendAudio(pcmBuffer);
 
 // 结束会话
-ws.send(JSON.stringify({ type: 'stop' }));
+ws.stop();
 ```
 
 ---

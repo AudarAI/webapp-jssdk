@@ -1,9 +1,54 @@
 export { AiVoxClient } from "./client";
 export { TtsApi } from "./tts";
-export { SttApi } from "./stt";
-export { TranslationApi } from "./translation";
-export type { AiVoxClientConfig, TokenData, Speaker, SynthesizeOptions, TranscribeOptions, TranscribeStreamOptions, ConnectSttWebSocketOptions, TranslateOptions, ConnectTranslationWebSocketOptions } from "./types";
+export { SttApi, SttWebSocket } from "./stt";
+export { TranslationApi, TranslationWebSocket } from "./translation";
+export type { TranscribeResult } from "./stt";
+export type { TranslationResult } from "./translation";
+export type {
+  AiVoxClientConfig,
+  TokenData,
+  Speaker,
+  ListSpeakersResponse,
+  SpeakerOperationResponse,
+  WordTimestamp,
+  SynthesizeOptions,
+  TranscribeOptions,
+  TranscribeStreamOptions,
+  TranscribeStreamChunk,
+  TranscribeStreamHandlers,
+  ConnectSttWebSocketOptions,
+  SttMessage,
+  SttReadyMessage,
+  SttPartialMessage,
+  SttSegmentMessage,
+  SttFinalMessage,
+  SttErrorMessage,
+  SttWebSocketHandlers,
+  TranslateOptions,
+  TranslateHandlers,
+  ConnectTranslationWebSocketOptions,
+  TranslationMessage,
+  TranslationWebSocketHandlers,
+  TranslationReadyMessage,
+  TranslationSttPartialMessage,
+  TranslationSttSegmentMessage,
+  TranslationCompleteMessage,
+  TranslationTtsChunkMessage,
+  TranslationSegmentCompleteMessage,
+  TranslationPipelineCompleteMessage,
+  TranslationErrorMessage,
+  TranslationSseStatusMessage,
+  TranslationSseSttPartialMessage,
+  TranslationSseSttFinalMessage,
+  TranslationSseTranslationPartialMessage,
+  TranslationSseTranslationCompleteMessage,
+  TranslationSseTtsChunkMessage,
+  TranslationSseTtsCompleteMessage,
+  TranslationSsePipelineCompleteMessage,
+  TranslationSseErrorMessage,
+} from "./types";
 export { AiVoxError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
+
 import { AiVoxClient } from "./client";
 import { TtsApi } from "./tts";
 import { SttApi } from "./stt";
