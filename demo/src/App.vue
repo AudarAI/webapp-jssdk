@@ -5,22 +5,25 @@ import ConnectPanel from "./components/ConnectPanel.vue";
 import TtsPanel from "./components/TtsPanel.vue";
 import SttPanel from "./components/SttPanel.vue";
 import TranslationPanel from "./components/TranslationPanel.vue";
+import AgentPanel from "./components/AgentPanel.vue";
 
 const { connected } = useClient();
 
-type Panel = "tts" | "stt" | "translation";
+type Panel = "tts" | "stt" | "translation" | "agent";
 const activePanel = ref<Panel>("tts");
 
 const NAV: { key: Panel; label: string }[] = [
-  { key: "tts",         label: "🔊 TTS 语音合成" },
-  { key: "stt",         label: "🎙️ STT 语音转写" },
-  { key: "translation", label: "🌐 语音翻译"     },
+  { key: "tts",         label: "🔊 TTS 语音合成"  },
+  { key: "stt",         label: "🎙️ STT 语音转写"  },
+  { key: "translation", label: "🌐 语音翻译"       },
+  { key: "agent",       label: "🤖 Agent 对话"     },
 ];
 
 const PANEL_TITLES: Record<Panel, string> = {
   tts:         "🔊 TTS — 文字转语音",
   stt:         "🎙️ STT — 语音转文字",
   translation: "🌐 Translation — 语音翻译",
+  agent:       "🤖 Agent — 智能对话",
 };
 </script>
 
@@ -66,6 +69,7 @@ const PANEL_TITLES: Record<Panel, string> = {
         <TtsPanel         v-show="activePanel === 'tts'" />
         <SttPanel         v-show="activePanel === 'stt'" />
         <TranslationPanel v-show="activePanel === 'translation'" />
+        <AgentPanel       v-show="activePanel === 'agent'" />
       </template>
     </main>
   </div>

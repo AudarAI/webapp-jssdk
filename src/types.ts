@@ -345,3 +345,116 @@ export interface ConnectTranslationWebSocketOptions {
   tts_enabled?: boolean;
   response_format?: string;
 }
+
+// ── Agent types ───────────────────────────────────────────────────────────────
+
+export interface AgentCreate {
+  name: string;
+  description?: string;
+  system_prompt?: string;
+  voice?: string;
+  model?: string;
+  language?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentUpdate {
+  name?: string;
+  description?: string;
+  system_prompt?: string;
+  voice?: string;
+  model?: string;
+  language?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentResponse {
+  id: string;
+  name: string;
+  description?: string;
+  system_prompt?: string;
+  voice?: string;
+  model?: string;
+  language?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentChatResponse {
+  session_id: string;
+  room_id: string;
+}
+
+// ── Room types ────────────────────────────────────────────────────────────────
+
+export interface RoomCreate {
+  name?: string;
+  agent_id?: string;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RoomUpdate {
+  name?: string;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RoomResponse {
+  id: string;
+  name?: string;
+  agent_id?: string;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Session types ─────────────────────────────────────────────────────────────
+
+export interface SessionCreate {
+  config?: Record<string, unknown>;
+}
+
+export interface SessionResponse {
+  id: string;
+  room_id: string;
+  status: string;
+  config?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Message types ─────────────────────────────────────────────────────────────
+
+export interface MessageCreate {
+  role: "user" | "assistant" | "system";
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface MessageResponse {
+  id: string;
+  session_id: string;
+  role: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface MessageListResponse {
+  data: MessageResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// ── Voice types ───────────────────────────────────────────────────────────────
+
+export interface LiveKitTokenResponse {
+  token: string;
+  room_name: string;
+  livekit_url: string;
+  session_id: string;
+}

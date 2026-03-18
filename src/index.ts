@@ -2,6 +2,7 @@ export { AiVoxClient } from "./client";
 export { TtsApi } from "./tts";
 export { SttApi, SttWebSocket } from "./stt";
 export { TranslationApi, TranslationWebSocket } from "./translation";
+export { AgentApi } from "./agent";
 export type { TranscribeResult } from "./stt";
 export type { TranslationResult } from "./translation";
 export type {
@@ -46,6 +47,19 @@ export type {
   TranslationSseTtsCompleteMessage,
   TranslationSsePipelineCompleteMessage,
   TranslationSseErrorMessage,
+  AgentCreate,
+  AgentUpdate,
+  AgentResponse,
+  AgentChatResponse,
+  RoomCreate,
+  RoomUpdate,
+  RoomResponse,
+  SessionCreate,
+  SessionResponse,
+  MessageCreate,
+  MessageResponse,
+  MessageListResponse,
+  LiveKitTokenResponse,
 } from "./types";
 export { AiVoxError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
 
@@ -53,6 +67,7 @@ import { AiVoxClient } from "./client";
 import { TtsApi } from "./tts";
 import { SttApi } from "./stt";
 import { TranslationApi } from "./translation";
+import { AgentApi } from "./agent";
 import type { AiVoxClientConfig } from "./types";
 
 /**
@@ -77,14 +92,17 @@ export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
   tts: TtsApi;
   stt: SttApi;
   translation: TranslationApi;
+  agent: AgentApi;
 } {
   const client = new AiVoxClient(config) as AiVoxClient & {
     tts: TtsApi;
     stt: SttApi;
     translation: TranslationApi;
+    agent: AgentApi;
   };
   client.tts = new TtsApi(client.http);
   client.stt = new SttApi(client.http);
   client.translation = new TranslationApi(client.http);
+  client.agent = new AgentApi(client.http);
   return client;
 }

@@ -1,11 +1,12 @@
 import { shallowRef, ref, readonly, markRaw } from "vue";
 import { createAiVoxClient, type AiVoxClientConfig } from "@aivox/sdk";
-import type { AiVoxClient, TtsApi, SttApi, TranslationApi } from "@aivox/sdk";
+import type { AiVoxClient, TtsApi, SttApi, TranslationApi, AgentApi } from "@aivox/sdk";
 
 export type ConnectedClient = AiVoxClient & {
   tts: TtsApi;
   stt: SttApi;
   translation: TranslationApi;
+  agent: AgentApi;
 };
 
 // Module-level singleton — shared across all components
