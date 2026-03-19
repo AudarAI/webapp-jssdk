@@ -6,10 +6,13 @@ import TtsPanel from "./components/TtsPanel.vue";
 import SttPanel from "./components/SttPanel.vue";
 import TranslationPanel from "./components/TranslationPanel.vue";
 import AgentPanel from "./components/AgentPanel.vue";
+import KnowledgePanel from "./components/KnowledgePanel.vue";
+import ToolPanel from "./components/ToolPanel.vue";
+import SkillPanel from "./components/SkillPanel.vue";
 
 const { connected } = useClient();
 
-type Panel = "tts" | "stt" | "translation" | "agent";
+type Panel = "tts" | "stt" | "translation" | "agent" | "knowledge" | "tool" | "skill";
 const activePanel = ref<Panel>("tts");
 
 const NAV: { key: Panel; label: string }[] = [
@@ -17,6 +20,9 @@ const NAV: { key: Panel; label: string }[] = [
   { key: "stt",         label: "🎙️ STT 语音转写"  },
   { key: "translation", label: "🌐 语音翻译"       },
   { key: "agent",       label: "🤖 Agent 对话"     },
+  { key: "knowledge",   label: "📚 知识库"          },
+  { key: "tool",        label: "🔧 工具管理"        },
+  { key: "skill",       label: "⚡ 技能管理"        },
 ];
 
 const PANEL_TITLES: Record<Panel, string> = {
@@ -24,6 +30,9 @@ const PANEL_TITLES: Record<Panel, string> = {
   stt:         "🎙️ STT — 语音转文字",
   translation: "🌐 Translation — 语音翻译",
   agent:       "🤖 Agent — 智能对话",
+  knowledge:   "📚 Knowledge — 知识库管理",
+  tool:        "🔧 Tools — 工具管理",
+  skill:       "⚡ Skill — 技能管理",
 };
 </script>
 
@@ -70,6 +79,9 @@ const PANEL_TITLES: Record<Panel, string> = {
         <SttPanel         v-show="activePanel === 'stt'" />
         <TranslationPanel v-show="activePanel === 'translation'" />
         <AgentPanel       v-show="activePanel === 'agent'" />
+        <KnowledgePanel   v-show="activePanel === 'knowledge'" />
+        <ToolPanel        v-show="activePanel === 'tool'" />
+        <SkillPanel       v-show="activePanel === 'skill'" />
       </template>
     </main>
   </div>

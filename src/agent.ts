@@ -13,9 +13,20 @@ import {
   MessageListResponse,
   LiveKitTokenResponse,
 } from "./types";
+import { KnowledgeApi } from "./knowledge";
+import { ToolApi } from "./tool";
+import { SkillApi } from "./skill";
 
 export class AgentApi {
-  constructor(private readonly _http: HttpClient) {}
+  readonly knowledge: KnowledgeApi;
+  readonly tools: ToolApi;
+  readonly skills: SkillApi;
+
+  constructor(private readonly _http: HttpClient) {
+    this.knowledge = new KnowledgeApi(_http);
+    this.tools = new ToolApi(_http);
+    this.skills = new SkillApi(_http);
+  }
 
   // ── Agent Management ──────────────────────────────────────────────────────
 

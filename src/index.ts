@@ -3,6 +3,9 @@ export { TtsApi } from "./tts";
 export { SttApi, SttWebSocket } from "./stt";
 export { TranslationApi, TranslationWebSocket } from "./translation";
 export { AgentApi } from "./agent";
+export { KnowledgeApi } from "./knowledge";
+export { ToolApi } from "./tool";
+export { SkillApi } from "./skill";
 export type { TranscribeResult } from "./stt";
 export type { TranslationResult } from "./translation";
 export type {
@@ -47,6 +50,8 @@ export type {
   TranslationSseTtsCompleteMessage,
   TranslationSsePipelineCompleteMessage,
   TranslationSseErrorMessage,
+  MemoryPolicy,
+  ToolBinding,
   AgentCreate,
   AgentUpdate,
   AgentResponse,
@@ -60,6 +65,25 @@ export type {
   MessageResponse,
   MessageListResponse,
   LiveKitTokenResponse,
+  KnowledgeCreate,
+  KnowledgeUpdate,
+  KnowledgeResponse,
+  KnowledgeDocumentResponse,
+  IngestTextRequest,
+  SearchRequest,
+  SearchResultItem,
+  ToolType,
+  HttpToolConfig,
+  BuiltinToolConfig,
+  McpToolConfig,
+  ToolConfig,
+  ToolCreate,
+  ToolUpdate,
+  ToolResponse,
+  BuiltinCatalogEntry,
+  SkillCreate,
+  SkillUpdate,
+  SkillResponse,
 } from "./types";
 export { AiVoxError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
 
@@ -68,10 +92,13 @@ import { TtsApi } from "./tts";
 import { SttApi } from "./stt";
 import { TranslationApi } from "./translation";
 import { AgentApi } from "./agent";
+import { KnowledgeApi } from "./knowledge";
+import { ToolApi } from "./tool";
+import { SkillApi } from "./skill";
 import type { AiVoxClientConfig } from "./types";
 
 /**
- * Convenience factory that creates an AiVoxClient with TTS, STT, and Translation APIs.
+ * Convenience factory that creates an AiVoxClient with TTS, STT, Translation, Agent and Knowledge APIs.
  *
  * @example
  * // Publishable key — all requests go through a session token
@@ -93,16 +120,25 @@ export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
   stt: SttApi;
   translation: TranslationApi;
   agent: AgentApi;
+  knowledge: KnowledgeApi;
+  tool: ToolApi;
+  skill: SkillApi;
 } {
   const client = new AiVoxClient(config) as AiVoxClient & {
     tts: TtsApi;
     stt: SttApi;
     translation: TranslationApi;
     agent: AgentApi;
+    knowledge: KnowledgeApi;
+    tool: ToolApi;
+    skill: SkillApi;
   };
   client.tts = new TtsApi(client.http);
   client.stt = new SttApi(client.http);
   client.translation = new TranslationApi(client.http);
   client.agent = new AgentApi(client.http);
+  client.knowledge = new KnowledgeApi(client.http);
+  client.tool = new ToolApi(client.http);
+  client.skill = new SkillApi(client.http);
   return client;
 }

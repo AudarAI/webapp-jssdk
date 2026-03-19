@@ -16,9 +16,16 @@ const newAgent = ref({
   name: "",
   description: "",
   system_prompt: "",
-  voice: "",
-  model: "",
+  voice_id: "",
+  role: "",
   language: "",
+  archetype_id: "",
+  is_public: false,
+  skills: "",
+  knowledge_bindings: "",
+  tool_bindings: "",
+  memory_enable: false,
+  memory_turns: "" as number | "",
 });
 
 async function listAgents() {
@@ -39,13 +46,109 @@ async function createAgent() {
       name: newAgent.value.name,
       description: newAgent.value.description || undefined,
       system_prompt: newAgent.value.system_prompt || undefined,
-      voice: newAgent.value.voice || undefined,
-      model: newAgent.value.model || undefined,
+      voice_id: newAgent.value.voice_id || undefined,
+      role: newAgent.value.role || undefined,
       language: newAgent.value.language || undefined,
+      archetype_id: newAgent.value.archetype_id || undefined,
+      is_public: newAgent.value.is_public,
+      skills: newAgent.value.skills
+        ? newAgent.value.skills.split(",").map(s => s.trim()).filter(Boolean)
+        : undefined,
+      knowledge_bindings: newAgent.value.knowledge_bindings
+        ? newAgent.value.knowledge_bindings.split(",").map(s => s.trim()).filter(Boolean)
+        : undefined,
+      tool_bindings: newAgent.value.tool_bindings
+        ? newAgent.value.tool_bindings.split(",").map(s => s.trim()).filter(Boolean).map(id => ({ tool_id: id }))
+        : undefined,
+      memory_policy: (newAgent.value.memory_enable || newAgent.value.memory_turns !== "")
+        ? {
+            enable_memory: newAgent.value.memory_enable,
+            ...(newAgent.value.memory_turns !== "" ? { num_history_turns: newAgent.value.memory_turns as number } : {}),
+          }
+        : undefined,
     });
     agents.value.push(created);
     log(`Agent 创建成功: ${created.id}`, "ok");
-    newAgent.value = { name: "", description: "", system_prompt: "", voice: "", model: "", language: "" };
+    newAgent.value = { name: "", description: "", system_prompt: "", voice_id: "", role: "", language: "", archetype_id: "", is_public: false, skills: "", knowledge_bindings: "", tool_bindings: "", memory_enable: false, memory_turns: "" };
+  } catch (err) {
+    logError(err);
+  }
+}
+
+// ── 编辑 Agent ─────────────────────────────────────────────────────────────────
+const editingId = ref<string | null>(null);
+const editForm = ref({
+  name: "",
+  description: "",
+  system_prompt: "",
+  voice_id: "",
+  role: "",
+  language: "",
+  archetype_id: "",
+  is_public: false,
+  skills: "",
+  knowledge_bindings: "",
+  tool_bindings: "",
+  memory_enable: false,
+  memory_turns: "" as number | "",
+});
+
+function startEdit(a: AgentResponse) {
+  editingId.value = a.id;
+  editForm.value = {
+    name: a.name,
+    description: a.description,
+    system_prompt: a.system_prompt,
+    voice_id: a.voice_id ?? "",
+    role: a.role ?? "",
+    language: a.language ?? "",
+    archetype_id: a.archetype_id ?? "",
+    is_public: a.is_public,
+    skills: a.skills.join(", "),
+    knowledge_bindings: a.knowledge_bindings.join(", "),
+    tool_bindings: a.tool_bindings.map(b => b.tool_id).join(", "),
+    memory_enable: a.memory_policy?.enable_memory ?? false,
+    memory_turns: a.memory_policy?.num_history_turns ?? "",
+  };
+}
+
+function cancelEdit() {
+  editingId.value = null;
+}
+
+async function saveEdit() {
+  if (!editingId.value) return;
+  log(`更新 Agent: ${editingId.value}...`, "info");
+  try {
+    const updated = await client.value!.agent.updateAgent(editingId.value, {
+      name: editForm.value.name || undefined,
+      description: editForm.value.description || undefined,
+      system_prompt: editForm.value.system_prompt || undefined,
+      voice_id: editForm.value.voice_id || undefined,
+      role: editForm.value.role || undefined,
+      language: editForm.value.language || undefined,
+      archetype_id: editForm.value.archetype_id || undefined,
+      is_public: editForm.value.is_public,
+      skills: editForm.value.skills
+        ? editForm.value.skills.split(",").map(s => s.trim()).filter(Boolean)
+        : undefined,
+      knowledge_bindings: editForm.value.knowledge_bindings
+        ? editForm.value.knowledge_bindings.split(",").map(s => s.trim()).filter(Boolean)
+        : undefined,
+      tool_bindings: editForm.value.tool_bindings
+        ? editForm.value.tool_bindings.split(",").map(s => s.trim()).filter(Boolean).map(id => ({ tool_id: id }))
+        : undefined,
+      memory_policy: (editForm.value.memory_enable || editForm.value.memory_turns !== "")
+        ? {
+            enable_memory: editForm.value.memory_enable,
+            ...(editForm.value.memory_turns !== "" ? { num_history_turns: editForm.value.memory_turns as number } : {}),
+          }
+        : undefined,
+    });
+    const idx = agents.value.findIndex(a => a.id === updated.id);
+    if (idx >= 0) agents.value[idx] = updated;
+    log(`Agent 更新成功: ${updated.id}`, "ok");
+    editingId.value = null;
   } catch (err) {
     logError(err);
   }
@@ -318,7 +421,12 @@ async function appendMessage() {
             <th>ID</th>
             <th>名称</th>
             <th>语言</th>
-            <th>模型</th>
+            <th>voice_id</th>
+            <th>role</th>
+            <th>skills</th>
+            <th>knowledge</th>
+            <th>tools</th>
+            <th>memory</th>
             <th>创建时间</th>
             <th>操作</th>
           </tr>
@@ -328,14 +436,91 @@ async function appendMessage() {
             <td class="id-cell" :title="agent.id">{{ agent.id.slice(0, 8) }}…</td>
             <td>{{ agent.name }}</td>
             <td>{{ agent.language ?? "—" }}</td>
-            <td>{{ agent.model ?? "—" }}</td>
+            <td>{{ agent.voice_id ?? "—" }}</td>
+            <td>{{ agent.role ?? "—" }}</td>
+            <td>{{ agent.skills.length }}</td>
+            <td>{{ agent.knowledge_bindings.length }}</td>
+            <td>{{ agent.tool_bindings.length }}</td>
+            <td>{{ agent.memory_policy?.enable_memory ? "✓" : "✗" }}</td>
             <td>{{ new Date(agent.created_at).toLocaleString() }}</td>
             <td>
+              <button class="btn btn-sm btn-outline" @click="startEdit(agent)">编辑</button>
               <button class="btn btn-sm btn-danger" @click="deleteAgent(agent.id)">删除</button>
             </td>
           </tr>
         </tbody>
       </table>
+
+      <!-- 编辑表单 -->
+      <div v-if="editingId" class="sub-section">
+        <h4>编辑 Agent <span class="editing-id">{{ editingId.slice(0, 8) }}…</span></h4>
+        <div class="row">
+          <div class="field">
+            <label>名称</label>
+            <input v-model="editForm.name" type="text" />
+          </div>
+          <div class="field">
+            <label>language</label>
+            <input v-model="editForm.language" type="text" placeholder="zh-CN" />
+          </div>
+          <div class="field">
+            <label>voice_id</label>
+            <input v-model="editForm.voice_id" type="text" placeholder="voice UUID" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>role</label>
+            <input v-model="editForm.role" type="text" />
+          </div>
+          <div class="field">
+            <label>archetype_id</label>
+            <input v-model="editForm.archetype_id" type="text" />
+          </div>
+          <div class="field" style="align-self:flex-end">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+              <input v-model="editForm.is_public" type="checkbox" />
+              is_public
+            </label>
+          </div>
+        </div>
+        <div class="field">
+          <label>description</label>
+          <input v-model="editForm.description" type="text" />
+        </div>
+        <div class="field">
+          <label>system_prompt</label>
+          <textarea v-model="editForm.system_prompt" rows="2" />
+        </div>
+        <div class="field">
+          <label>skills（逗号分隔 UUID）</label>
+          <input v-model="editForm.skills" type="text" />
+        </div>
+        <div class="field">
+          <label>knowledge_bindings（逗号分隔 UUID）</label>
+          <input v-model="editForm.knowledge_bindings" type="text" />
+        </div>
+        <div class="field">
+          <label>tool_bindings（逗号分隔 tool UUID）</label>
+          <input v-model="editForm.tool_bindings" type="text" />
+        </div>
+        <div class="row" style="align-items:center">
+          <div class="field" style="align-self:flex-end">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+              <input v-model="editForm.memory_enable" type="checkbox" />
+              enable_memory
+            </label>
+          </div>
+          <div class="field">
+            <label>num_history_turns</label>
+            <input v-model.number="editForm.memory_turns" type="number" min="1" placeholder="可选" />
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" @click="saveEdit">保存</button>
+          <button class="btn btn-outline" @click="cancelEdit">取消</button>
+        </div>
+      </div>
 
       <div class="sub-section">
         <h4>创建 Agent</h4>
@@ -349,12 +534,24 @@ async function appendMessage() {
             <input v-model="newAgent.language" type="text" placeholder="zh-CN" />
           </div>
           <div class="field">
-            <label>model</label>
-            <input v-model="newAgent.model" type="text" placeholder="gpt-4o" />
+            <label>voice_id</label>
+            <input v-model="newAgent.voice_id" type="text" placeholder="voice UUID" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>role</label>
+            <input v-model="newAgent.role" type="text" placeholder="角色描述（可选）" />
           </div>
           <div class="field">
-            <label>voice</label>
-            <input v-model="newAgent.voice" type="text" placeholder="alloy" />
+            <label>archetype_id</label>
+            <input v-model="newAgent.archetype_id" type="text" placeholder="原型 UUID（可选）" />
+          </div>
+          <div class="field" style="align-self:flex-end">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+              <input v-model="newAgent.is_public" type="checkbox" />
+              is_public
+            </label>
           </div>
         </div>
         <div class="field">
@@ -364,6 +561,30 @@ async function appendMessage() {
         <div class="field">
           <label>system_prompt</label>
           <textarea v-model="newAgent.system_prompt" rows="2" placeholder="系统提示词（可选）" />
+        </div>
+        <div class="field">
+          <label>skills（逗号分隔 UUID）</label>
+          <input v-model="newAgent.skills" type="text" placeholder="uuid1, uuid2, ..." />
+        </div>
+        <div class="field">
+          <label>knowledge_bindings（逗号分隔 UUID）</label>
+          <input v-model="newAgent.knowledge_bindings" type="text" placeholder="uuid1, uuid2, ..." />
+        </div>
+        <div class="field">
+          <label>tool_bindings（逗号分隔 tool UUID）</label>
+          <input v-model="newAgent.tool_bindings" type="text" placeholder="uuid1, uuid2, ..." />
+        </div>
+        <div class="row" style="align-items:center">
+          <div class="field" style="align-self:flex-end">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+              <input v-model="newAgent.memory_enable" type="checkbox" />
+              enable_memory
+            </label>
+          </div>
+          <div class="field">
+            <label>num_history_turns</label>
+            <input v-model.number="newAgent.memory_turns" type="number" min="1" placeholder="可选" />
+          </div>
         </div>
         <button class="btn btn-primary" @click="createAgent">创建 Agent</button>
       </div>
@@ -550,6 +771,12 @@ async function appendMessage() {
   font-family: monospace;
   font-size: 0.78rem;
   color: var(--text-muted, #6b7280);
+}
+.editing-id {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  margin-left: 0.4rem;
 }
 .sub-section {
   margin-top: 1.2rem;

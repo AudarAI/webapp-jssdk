@@ -348,35 +348,73 @@ export interface ConnectTranslationWebSocketOptions {
 
 // ── Agent types ───────────────────────────────────────────────────────────────
 
+export interface MemoryPolicy {
+  enable_memory?: boolean;
+  num_history_turns?: number;
+}
+
+export interface ToolBinding {
+  tool_id: string;
+  [key: string]: unknown;
+}
+
 export interface AgentCreate {
   name: string;
   description?: string;
+  archetype_id?: string;
+  identity?: Record<string, unknown>;
+  voice_id?: string;
+  memory_policy?: MemoryPolicy;
+  tool_bindings?: ToolBinding[];
+  is_public?: boolean;
   system_prompt?: string;
-  voice?: string;
-  model?: string;
   language?: string;
-  metadata?: Record<string, unknown>;
+  role?: string;
+  /** Skill UUIDs to bind to this agent. */
+  skills?: string[];
+  /** Knowledge UUIDs to bind to this agent. */
+  knowledge_bindings?: string[];
+  /** Channel UUIDs to bind to this agent. */
+  channel_bindings?: string[];
 }
 
 export interface AgentUpdate {
   name?: string;
   description?: string;
+  archetype_id?: string;
+  identity?: Record<string, unknown>;
+  voice_id?: string;
+  memory_policy?: MemoryPolicy;
+  tool_bindings?: ToolBinding[];
+  is_public?: boolean;
+  status?: string;
   system_prompt?: string;
-  voice?: string;
-  model?: string;
   language?: string;
-  metadata?: Record<string, unknown>;
+  role?: string;
+  skills?: string[];
+  knowledge_bindings?: string[];
+  channel_bindings?: string[];
 }
 
 export interface AgentResponse {
   id: string;
+  tenant_id: string;
+  owner_user_id: string;
+  archetype_id: string | null;
   name: string;
-  description?: string;
-  system_prompt?: string;
-  voice?: string;
-  model?: string;
-  language?: string;
-  metadata?: Record<string, unknown>;
+  description: string;
+  identity: Record<string, unknown>;
+  voice_id: string | null;
+  memory_policy: MemoryPolicy;
+  tool_bindings: ToolBinding[];
+  is_public: boolean;
+  status: string;
+  system_prompt: string;
+  language: string | null;
+  role: string | null;
+  skills: string[];
+  knowledge_bindings: string[];
+  channel_bindings: string[];
   created_at: string;
   updated_at: string;
 }
@@ -448,6 +486,184 @@ export interface MessageListResponse {
   total: number;
   page: number;
   page_size: number;
+}
+
+// ── Knowledge types ───────────────────────────────────────────────────────────
+
+export interface KnowledgeCreate {
+  name: string;
+  description?: string;
+  source_uri?: string;
+  collection?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface KnowledgeUpdate {
+  name?: string;
+  description?: string;
+  source_uri?: string;
+  collection?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface KnowledgeResponse {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  name: string;
+  description: string;
+  source_uri: string;
+  collection: string;
+  embedding_status: "pending" | "processing" | "completed" | "failed";
+  embedding_model: string;
+  total_chunks: number;
+  processed_chunks: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeDocumentResponse {
+  id: string;
+  knowledge_id: string;
+  tenant_id: string;
+  chunk_index: number;
+  source_label: string;
+  content: string;
+  created_at: string;
+}
+
+export interface IngestTextRequest {
+  source_type: "text" | "url";
+  /** Required when source_type is "text". */
+  text?: string;
+  /** Required when source_type is "url". */
+  url?: string;
+  /** Human-readable label stored on every chunk. Defaults to "inline text" or the URL. */
+  source_label?: string;
+  /** BCP-47 language code for sentence segmentation. Default: "en". */
+  language?: string;
+}
+
+export interface SearchRequest {
+  query: string;
+  /** Number of results to return. Default: 5. */
+  top_k?: number;
+  language?: string;
+}
+
+export interface SearchResultItem {
+  id: string;
+  chunk_index: number;
+  source_label: string;
+  content: string;
+  /** Cosine similarity in [0, 1]. Higher is more relevant. */
+  score: number;
+  created_at: string;
+}
+
+// ── Tool types ────────────────────────────────────────────────────────────────
+
+export type ToolType = "http" | "builtin" | "mcp";
+
+export interface HttpToolConfig {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body_schema?: Record<string, unknown>;
+  timeout?: number;
+}
+
+export interface BuiltinToolConfig {
+  toolkit: string;
+  params?: Record<string, unknown>;
+  include_tools?: string[];
+  exclude_tools?: string[];
+}
+
+export interface McpToolConfig {
+  transport: "sse" | "stdio";
+  server_url?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  timeout?: number;
+}
+
+export type ToolConfig = HttpToolConfig | BuiltinToolConfig | McpToolConfig;
+
+export interface ToolCreate {
+  name: string;
+  description?: string;
+  tool_type: ToolType;
+  config: ToolConfig;
+  auth_ref?: Record<string, unknown>;
+  policy?: Record<string, unknown>;
+  is_public?: boolean;
+}
+
+export interface ToolUpdate {
+  name?: string;
+  description?: string;
+  tool_type?: ToolType;
+  config?: ToolConfig;
+  auth_ref?: Record<string, unknown>;
+  policy?: Record<string, unknown>;
+  is_public?: boolean;
+  status?: string;
+}
+
+export interface ToolResponse {
+  id: string;
+  tenant_id: string | null;
+  name: string;
+  description: string;
+  tool_type: ToolType;
+  config: Record<string, unknown>;
+  auth_ref: Record<string, unknown>;
+  policy: Record<string, unknown>;
+  is_public: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BuiltinCatalogEntry {
+  toolkit: string;
+  description: string;
+  auth_required: boolean;
+  auth_fields: string[];
+  options_schema: Record<string, unknown>;
+}
+
+// ── Skill types ───────────────────────────────────────────────────────────────
+
+export interface SkillCreate {
+  name: string;
+  description?: string;
+  /** Markdown content injected into the agent's system instructions. */
+  content?: string;
+  is_public?: boolean;
+}
+
+export interface SkillUpdate {
+  name?: string;
+  description?: string;
+  content?: string;
+  is_public?: boolean;
+  status?: string;
+}
+
+export interface SkillResponse {
+  id: string;
+  tenant_id: string | null;
+  name: string;
+  description: string;
+  content: string;
+  is_public: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Voice types ───────────────────────────────────────────────────────────────
