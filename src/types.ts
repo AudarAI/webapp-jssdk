@@ -427,57 +427,114 @@ export interface AgentChatResponse {
 // ── Room types ────────────────────────────────────────────────────────────────
 
 export interface RoomCreate {
-  name?: string;
-  agent_id?: string;
+  /** Room display name. */
+  name: string;
+  description?: string;
+  /** "direct" (default) or custom type. */
+  room_type?: string;
+  /** System-level prompt injected into every session in this room. */
+  room_prompt?: string;
+  /** Knowledge IDs shared across all sessions. */
+  shared_knowledge?: unknown[];
+  policies?: Record<string, unknown>;
   config?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
+  /** Agent UUIDs allowed in this room. */
+  agent_ids?: string[];
 }
 
 export interface RoomUpdate {
   name?: string;
+  description?: string;
+  room_prompt?: string;
+  shared_knowledge?: unknown[];
+  policies?: Record<string, unknown>;
   config?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
+  agent_ids?: string[];
 }
 
 export interface RoomResponse {
   id: string;
-  name?: string;
-  agent_id?: string;
-  config?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
+  tenant_id: string;
+  name: string;
+  description: string;
+  room_type: string;
+  room_prompt: string;
+  shared_knowledge: unknown[];
+  policies: Record<string, unknown>;
+  config: Record<string, unknown>;
+  agent_ids: string[];
+  status: string;
   created_at: string;
   updated_at: string;
 }
 
+export interface RoomAddAgent {
+  agent_id: string;
+}
+
+export interface RoomAgentListResponse {
+  room_id: string;
+  agent_ids: string[];
+}
+
 // ── Session types ─────────────────────────────────────────────────────────────
+
+export interface Participant {
+  /** "user" | "agent" | custom type */
+  type: string;
+  /** UUID of the user or agent */
+  ref_id: string;
+  /** Display name of the participant, if returned by the server */
+  name?: string;
+  [key: string]: unknown;
+}
 
 export interface SessionCreate {
   config?: Record<string, unknown>;
+  participants?: Participant[];
+}
+
+export interface LiveKitTokenRequest {
+  /** 三方终端用户ID，用作 LiveKit participant identity */
+  user_id?: string;
+  /** 终端用户显示名，用作 LiveKit participant name */
+  user_name?: string;
 }
 
 export interface SessionResponse {
   id: string;
   room_id: string;
+  tenant_id: string;
+  user_id: string | null;
   status: string;
-  config?: Record<string, unknown>;
+  participants: Participant[];
+  config_snapshot: Record<string, unknown>;
+  metrics: Record<string, unknown>;
+  error_context: Record<string, unknown>;
+  started_at: string | null;
+  ended_at: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 // ── Message types ─────────────────────────────────────────────────────────────
 
 export interface MessageCreate {
-  role: "user" | "assistant" | "system";
+  role?: string;
   content: string;
+  speaker_type?: string;
+  speaker_ref_id?: string;
   metadata?: Record<string, unknown>;
 }
 
 export interface MessageResponse {
   id: string;
   session_id: string;
+  seq_num: number;
   role: string;
+  speaker_type: string;
+  speaker_ref_id: string | null;
   content: string;
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 

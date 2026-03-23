@@ -9,10 +9,11 @@ import AgentPanel from "./components/AgentPanel.vue";
 import KnowledgePanel from "./components/KnowledgePanel.vue";
 import ToolPanel from "./components/ToolPanel.vue";
 import SkillPanel from "./components/SkillPanel.vue";
+import RoomPanel from "./components/RoomPanel.vue";
 
 const { connected } = useClient();
 
-type Panel = "tts" | "stt" | "translation" | "agent" | "knowledge" | "tool" | "skill";
+type Panel = "tts" | "stt" | "translation" | "agent" | "knowledge" | "tool" | "skill" | "room";
 const activePanel = ref<Panel>("tts");
 
 const NAV: { key: Panel; label: string }[] = [
@@ -23,6 +24,7 @@ const NAV: { key: Panel; label: string }[] = [
   { key: "knowledge",   label: "📚 知识库"          },
   { key: "tool",        label: "🔧 工具管理"        },
   { key: "skill",       label: "⚡ 技能管理"        },
+  { key: "room",        label: "🏠 Room & Session"  },
 ];
 
 const PANEL_TITLES: Record<Panel, string> = {
@@ -33,6 +35,7 @@ const PANEL_TITLES: Record<Panel, string> = {
   knowledge:   "📚 Knowledge — 知识库管理",
   tool:        "🔧 Tools — 工具管理",
   skill:       "⚡ Skill — 技能管理",
+  room:        "🏠 Room & Session — 房间与会话管理",
 };
 </script>
 
@@ -82,6 +85,7 @@ const PANEL_TITLES: Record<Panel, string> = {
         <KnowledgePanel   v-show="activePanel === 'knowledge'" />
         <ToolPanel        v-show="activePanel === 'tool'" />
         <SkillPanel       v-show="activePanel === 'skill'" />
+        <RoomPanel        v-show="activePanel === 'room'" />
       </template>
     </main>
   </div>

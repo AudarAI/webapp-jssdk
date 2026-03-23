@@ -6,6 +6,8 @@ export { AgentApi } from "./agent";
 export { KnowledgeApi } from "./knowledge";
 export { ToolApi } from "./tool";
 export { SkillApi } from "./skill";
+export { RoomApi } from "./room";
+export { SessionApi } from "./session";
 export type { TranscribeResult } from "./stt";
 export type { TranslationResult } from "./translation";
 export type {
@@ -59,6 +61,9 @@ export type {
   RoomCreate,
   RoomUpdate,
   RoomResponse,
+  RoomAddAgent,
+  RoomAgentListResponse,
+  Participant,
   SessionCreate,
   SessionResponse,
   MessageCreate,
@@ -95,6 +100,8 @@ import { AgentApi } from "./agent";
 import { KnowledgeApi } from "./knowledge";
 import { ToolApi } from "./tool";
 import { SkillApi } from "./skill";
+import { RoomApi } from "./room";
+import { SessionApi } from "./session";
 import type { AiVoxClientConfig } from "./types";
 
 /**
