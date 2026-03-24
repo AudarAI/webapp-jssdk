@@ -46,7 +46,7 @@ async function listBuiltins() {
 }
 
 function useBuiltin(entry: BuiltinCatalogEntry) {
-  newTool.value.tool_type = "builtin";
+  toolType.value = "builtin";
   builtinToolkit.value = entry.toolkit;
   log(`已填充内置 Toolkit: ${entry.toolkit}`, "info");
 }

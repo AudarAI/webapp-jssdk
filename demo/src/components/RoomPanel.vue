@@ -308,9 +308,12 @@ const userId             = ref("");
 const micEnabled         = ref(true);
 const speakingIdentities = ref<string[]>([]);
 const localIdentity      = ref("");
-const audioEl            = ref<HTMLAudioElement | null>(null);
 
-interface LkParticipant { identity: string; name?: string; sid: string }
+// v2: per-participant audio elements to support multiple agents speaking simultaneously
+const _audioElements = new Map<string, HTMLAudioElement>();
+
+// v2: kind === 2 means ParticipantKind.AGENT (LiveKit constant)
+interface LkParticipant { identity: string; name?: string; sid: string; kind?: number }
 const lkParticipants = ref<LkParticipant[]>([]);
 
 interface SubtitleLine { id: string; text: string; role: "user" | "agent"; speakerName: string; final: boolean }
@@ -321,10 +324,23 @@ let _lkRoom: Room | null = null;
 
 function teardownVoice() {
   if (_lkRoom) { _lkRoom.removeAllListeners(); _lkRoom = null; }
+  // v2: detach and remove all per-participant audio elements
+  for (const el of _audioElements.values()) {
+    el.pause();
+    el.srcObject = null;
+    el.remove();
+  }
+  _audioElements.clear();
   speakingIdentities.value = [];
   localIdentity.value = "";
   lkParticipants.value = [];
   voiceState.value = "idle";
+}
+
+async function copySessionId() {
+  if (!sessionId.value) return;
+  await navigator.clipboard.writeText(sessionId.value);
+  log("Session ID 已复制到剪贴板，可分享给其他用户加入", "ok");
 }
 
 async function _connectWithToken(tokenRes: { token: string; livekit_url: string }) {
@@ -337,22 +353,25 @@ async function _connectWithToken(tokenRes: { token: string; livekit_url: string 
   room.on(RoomEvent.Connected, () => {
     voiceState.value = "connected";
     localIdentity.value = room.localParticipant.identity;
+    // v2: include kind so we can distinguish agents (kind=2) from users (kind=1)
     lkParticipants.value = Array.from(room.remoteParticipants.values())
-      .map(p => ({ identity: p.identity, name: p.name, sid: p.sid }));
+      .map(p => ({ identity: p.identity, name: p.name, sid: p.sid, kind: p.kind }));
     log(`本地参与者: identity="${room.localParticipant.identity}", name="${room.localParticipant.name}"`, "info");
     for (const p of room.remoteParticipants.values()) {
-      log(`成员已在房间中: ${JSON.stringify({ identity: p.identity, name: p.name, sid: p.sid, metadata: p.metadata })}`, "info");
+      const roleLabel = p.kind === 2 ? "🤖 Agent" : "👤 User";
+      log(`${roleLabel} 已在房间中: ${JSON.stringify({ identity: p.identity, name: p.name, sid: p.sid })}`, "info");
     }
     log(`已连接到语音房间，当前远端成员共 ${lkParticipants.value.length} 人`, "ok");
   });
   room.on(RoomEvent.ParticipantConnected, (p) => {
-    lkParticipants.value.push({ identity: p.identity, name: p.name, sid: p.sid });
-    log(`成员加入: ${JSON.stringify({ identity: p.identity, name: p.name, sid: p.sid, metadata: p.metadata })}`, "info");
+    lkParticipants.value.push({ identity: p.identity, name: p.name, sid: p.sid, kind: p.kind });
+    const roleLabel = p.kind === 2 ? "🤖 Agent" : "👤 User";
+    log(`${roleLabel} 加入: ${JSON.stringify({ identity: p.identity, name: p.name, sid: p.sid })}`, "info");
   });
   room.on(RoomEvent.ParticipantNameChanged, (name, participant) => {
     const idx = lkParticipants.value.findIndex(p => p.sid === participant.sid);
     if (idx >= 0) lkParticipants.value[idx] = { ...lkParticipants.value[idx], name };
-    log(`成员名称更新: ${JSON.stringify({ identity: participant.identity, name, sid: participant.sid })}`, "info");
+    log(`成员名称更新: ${JSON.stringify({ identity: participant.identity, name, sid: participant.sid, kind: participant.kind })}`, "info");
   });
   room.on(RoomEvent.ParticipantDisconnected, (p) => {
     lkParticipants.value = lkParticipants.value.filter(x => x.sid !== p.sid);
@@ -362,13 +381,31 @@ async function _connectWithToken(tokenRes: { token: string; livekit_url: string 
     log("语音连接已断开", "info");
     teardownVoice();
   });
-  room.on(RoomEvent.TrackSubscribed, (track) => {
-    if (track.kind === Track.Kind.Audio && audioEl.value) {
-      track.attach(audioEl.value);
-      log("收到 Agent 音频流", "ok");
+  // v2: per-participant audio elements — supports multiple agents speaking simultaneously
+  room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+    if (track.kind === Track.Kind.Audio) {
+      let el = _audioElements.get(participant.identity);
+      if (!el) {
+        el = document.createElement("audio");
+        el.autoplay = true;
+        document.body.appendChild(el);
+        _audioElements.set(participant.identity, el);
+      }
+      track.attach(el);
+      const roleLabel = participant.kind === 2 ? "🤖 Agent" : "👤 User";
+      log(`收到 ${roleLabel} 音频流: ${participant.name || participant.identity}`, "ok");
     }
   });
-  room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach(); });
+  room.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
+    track.detach();
+    const el = _audioElements.get(participant.identity);
+    if (el) {
+      el.pause();
+      el.srcObject = null;
+      el.remove();
+      _audioElements.delete(participant.identity);
+    }
+  });
   room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
     speakingIdentities.value = speakers.map(s => s.identity);
   });
@@ -762,7 +799,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
     <!-- Card 7: 语音对话 -->
     <div class="card">
       <h3>语音对话</h3>
-      <p class="hint">基于上方 Session 通过 LiveKit 接入实时语音。</p>
+      <p class="hint">支持多 Agent + 多用户同时加入同一 Session 进行实时语音对话。</p>
 
       <div class="row" style="margin-bottom:0.5rem">
         <div class="field">
@@ -775,12 +812,21 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         </div>
       </div>
 
+      <!-- v2: Session share row — allows copying session ID to invite more users -->
+      <div v-if="sessionId" class="share-row">
+        <span class="share-label">Session ID:</span>
+        <code class="share-id" :title="sessionId">{{ sessionId.slice(0, 16) }}…</code>
+        <button class="btn btn-sm btn-outline" @click="copySessionId">复制邀请 ID</button>
+        <span class="hint-text">其他用户可用此 ID 点击「加入已有 Session」</span>
+      </div>
+
       <div class="voice-status" :class="`vs-${voiceState}`">
         <span class="voice-dot" />
         <span>{{ { idle: "未连接", connecting: "连接中…", connected: "已连接", disconnecting: "断开中…" }[voiceState] }}</span>
         <span v-if="sessionId && voiceState !== 'idle'" class="voice-sid">{{ sessionId.slice(0, 8) }}…</span>
       </div>
 
+      <!-- v2: participant pills with agent (🤖) / user (👤) distinction -->
       <div v-if="voiceState === 'connected'" class="speakers-row">
         <div class="speaker-pill" :class="{ speaking: speakingIdentities.includes(localIdentity) }">
           {{ micEnabled ? '🎤' : '🔇' }} {{ userName || localIdentity || '我' }}
@@ -789,9 +835,9 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           v-for="p in lkParticipants"
           :key="p.sid"
           class="speaker-pill"
-          :class="{ speaking: speakingIdentities.includes(p.identity) }"
+          :class="{ speaking: speakingIdentities.includes(p.identity), 'is-agent': p.kind === 2 }"
         >
-          🎤 {{ p.name || p.identity }}
+          {{ p.kind === 2 ? '🤖' : '👤' }} {{ p.name || p.identity }}
         </div>
       </div>
 
@@ -824,7 +870,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         </button>
       </div>
 
-      <audio ref="audioEl" autoplay style="display:none" />
+      <!-- v2: audio elements are created dynamically per-participant in _audioElements Map -->
     </div>
   </div>
 </template>
@@ -1090,5 +1136,37 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
   color: #94a3b8;
   font-family: monospace;
   font-size: 0.78rem;
+}
+/* v2: agent participant pill — purple tint to distinguish from user pills */
+.speaker-pill.is-agent {
+  background: var(--bg-agent, #ede9fe);
+  border-color: #a78bfa;
+  color: #5b21b6;
+}
+/* v2: session share row */
+.share-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  padding: 0.4rem 0.75rem;
+  background: var(--bg-alt, #f8fafc);
+  border-radius: 6px;
+  border: 1px dashed var(--border, #e2e8f0);
+}
+.share-label {
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+  font-weight: 600;
+}
+.share-id {
+  font-family: monospace;
+  font-size: 0.8rem;
+  background: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #e2e8f0);
+  color: #374151;
 }
 </style>

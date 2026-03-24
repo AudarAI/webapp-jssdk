@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@aivox/sdk": "file:..",
-    "livekit-client": "^2.17.3",
+    "livekit-client": "^2.18.0",
     "vue": "^3.5.0"
   },
   "devDependencies": {
