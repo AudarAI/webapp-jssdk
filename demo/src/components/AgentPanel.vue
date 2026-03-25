@@ -3,7 +3,7 @@ import { ref, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, SessionResponse, MessageResponse } from "@aivox/sdk";
+import type { AgentResponse, SessionResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse } from "@aivox/sdk";
 import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
@@ -11,6 +11,30 @@ const { entries, log, clear, logError } = useLog();
 
 // ── Card 1: Agents ─────────────────────────────────────────────────────────────
 const agents = ref<AgentResponse[]>([]);
+
+// ── 下拉选项数据 ────────────────────────────────────────────────────────────────
+const skillList      = ref<SkillResponse[]>([]);
+const knowledgeList  = ref<KnowledgeResponse[]>([]);
+const toolList       = ref<ToolResponse[]>([]);
+const voiceList      = ref<string[]>([]);
+
+async function loadDropdownData() {
+  if (!client.value) return;
+  try {
+    const [skills, knowledge, tools, voices] = await Promise.all([
+      client.value.skill.list(),
+      client.value.knowledge.list(),
+      client.value.tool.list(),
+      client.value.tts.listSpeakers(),
+    ]);
+    skillList.value     = skills;
+    knowledgeList.value = knowledge;
+    toolList.value      = tools;
+    voiceList.value     = voices;
+  } catch (err) {
+    logError(err);
+  }
+}
 
 const newAgent = ref({
   name: "",
@@ -21,9 +45,9 @@ const newAgent = ref({
   language: "",
   archetype_id: "",
   is_public: false,
-  skills: "",
-  knowledge_bindings: "",
-  tool_bindings: "",
+  skills: [] as string[],
+  knowledge_bindings: [] as string[],
+  tool_bindings: [] as string[],
   memory_enable: false,
   memory_turns: "" as number | "",
 });
@@ -31,7 +55,10 @@ const newAgent = ref({
 async function listAgents() {
   log("获取 Agent 列表...", "info");
   try {
-    agents.value = await client.value!.agent.listAgents();
+    [agents.value] = await Promise.all([
+      client.value!.agent.listAgents(),
+      loadDropdownData(),
+    ]);
     log(`共 ${agents.value.length} 个 Agent`, "ok");
   } catch (err) {
     logError(err);
@@ -51,15 +78,9 @@ async function createAgent() {
       language: newAgent.value.language || undefined,
       archetype_id: newAgent.value.archetype_id || undefined,
       is_public: newAgent.value.is_public,
-      skills: newAgent.value.skills
-        ? newAgent.value.skills.split(",").map(s => s.trim()).filter(Boolean)
-        : undefined,
-      knowledge_bindings: newAgent.value.knowledge_bindings
-        ? newAgent.value.knowledge_bindings.split(",").map(s => s.trim()).filter(Boolean)
-        : undefined,
-      tool_bindings: newAgent.value.tool_bindings
-        ? newAgent.value.tool_bindings.split(",").map(s => s.trim()).filter(Boolean).map(id => ({ tool_id: id }))
-        : undefined,
+      skills: newAgent.value.skills.length ? newAgent.value.skills : undefined,
+      knowledge_bindings: newAgent.value.knowledge_bindings.length ? newAgent.value.knowledge_bindings : undefined,
+      tool_bindings: newAgent.value.tool_bindings.length ? newAgent.value.tool_bindings.map(id => ({ tool_id: id })) : undefined,
       memory_policy: (newAgent.value.memory_enable || newAgent.value.memory_turns !== "")
         ? {
             enable_memory: newAgent.value.memory_enable,
@@ -69,7 +90,7 @@ async function createAgent() {
     });
     agents.value.push(created);
     log(`Agent 创建成功: ${created.id}`, "ok");
-    newAgent.value = { name: "", description: "", system_prompt: "", voice_id: "", role: "", language: "", archetype_id: "", is_public: false, skills: "", knowledge_bindings: "", tool_bindings: "", memory_enable: false, memory_turns: "" };
+    newAgent.value = { name: "", description: "", system_prompt: "", voice_id: "", role: "", language: "", archetype_id: "", is_public: false, skills: [], knowledge_bindings: [], tool_bindings: [], memory_enable: false, memory_turns: "" };
   } catch (err) {
     logError(err);
   }
@@ -86,9 +107,9 @@ const editForm = ref({
   language: "",
   archetype_id: "",
   is_public: false,
-  skills: "",
-  knowledge_bindings: "",
-  tool_bindings: "",
+  skills: [] as string[],
+  knowledge_bindings: [] as string[],
+  tool_bindings: [] as string[],
   memory_enable: false,
   memory_turns: "" as number | "",
 });
@@ -104,9 +125,9 @@ function startEdit(a: AgentResponse) {
     language: a.language ?? "",
     archetype_id: a.archetype_id ?? "",
     is_public: a.is_public,
-    skills: a.skills.join(", "),
-    knowledge_bindings: a.knowledge_bindings.join(", "),
-    tool_bindings: a.tool_bindings.map(b => b.tool_id).join(", "),
+    skills: [...a.skills],
+    knowledge_bindings: [...a.knowledge_bindings],
+    tool_bindings: a.tool_bindings.map(b => b.tool_id),
     memory_enable: a.memory_policy?.enable_memory ?? false,
     memory_turns: a.memory_policy?.num_history_turns ?? "",
   };
@@ -129,15 +150,9 @@ async function saveEdit() {
       language: editForm.value.language || undefined,
       archetype_id: editForm.value.archetype_id || undefined,
       is_public: editForm.value.is_public,
-      skills: editForm.value.skills
-        ? editForm.value.skills.split(",").map(s => s.trim()).filter(Boolean)
-        : undefined,
-      knowledge_bindings: editForm.value.knowledge_bindings
-        ? editForm.value.knowledge_bindings.split(",").map(s => s.trim()).filter(Boolean)
-        : undefined,
-      tool_bindings: editForm.value.tool_bindings
-        ? editForm.value.tool_bindings.split(",").map(s => s.trim()).filter(Boolean).map(id => ({ tool_id: id }))
-        : undefined,
+      skills: editForm.value.skills.length ? editForm.value.skills : undefined,
+      knowledge_bindings: editForm.value.knowledge_bindings.length ? editForm.value.knowledge_bindings : undefined,
+      tool_bindings: editForm.value.tool_bindings.length ? editForm.value.tool_bindings.map(id => ({ tool_id: id })) : undefined,
       memory_policy: (editForm.value.memory_enable || editForm.value.memory_turns !== "")
         ? {
             enable_memory: editForm.value.memory_enable,
@@ -169,6 +184,7 @@ async function deleteAgent(id: string) {
 // ── Card 2: Chat ───────────────────────────────────────────────────────────────
 const chatAgentId = ref("");
 const chatMessage = ref("你好");
+const chatVoiceId = ref("");
 const chatSessionId = ref("");
 const chatRoomId = ref("");
 const livekitToken = ref<Record<string, unknown> | null>(null);
@@ -178,7 +194,11 @@ async function startChat() {
   if (!chatMessage.value.trim()) { log("请输入消息", "warn"); return; }
   log(`发起 Chat (agent=${chatAgentId.value})...`, "info");
   try {
-    const res = await client.value!.agent.chat(chatAgentId.value, chatMessage.value);
+    const res = await client.value!.agent.chat(
+      chatAgentId.value,
+      chatMessage.value,
+      chatVoiceId.value ? { voice_id: chatVoiceId.value } : undefined,
+    );
     chatSessionId.value = res.session_id;
     chatRoomId.value = res.room_id;
     sessionId.value = res.session_id;
@@ -279,8 +299,15 @@ type VoiceState = "idle" | "connecting" | "connected" | "disconnecting";
 
 const voiceAgentId       = ref("");
 const voiceInitMsg       = ref("你好");
+const voiceVoiceId       = ref("");
 const userName           = ref("");
 const userId             = ref("");
+
+function randomizeUser() {
+  const rand = () => Math.random().toString(36).slice(2, 6);
+  userName.value = `用户_${rand()}`;
+  userId.value   = `user_${rand()}${rand()}`;
+}
 const voiceState         = ref<VoiceState>("idle");
 const voiceSessionId     = ref("");
 const joinSessionId      = ref("");
@@ -386,6 +413,7 @@ async function startVoice() {
     const chatRes = await client.value!.agent.chat(
       voiceAgentId.value,
       voiceInitMsg.value || "你好",
+      voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : undefined,
     );
     voiceSessionId.value = chatRes.session_id;
     log(`Session: ${chatRes.session_id}`, "info");
@@ -458,6 +486,7 @@ async function appendMessage() {
       <h3>Agents</h3>
       <div class="row">
         <button class="btn btn-outline" @click="listAgents">获取 Agent 列表</button>
+        <button class="btn btn-outline" @click="loadDropdownData">刷新下拉选项</button>
       </div>
 
       <table v-if="agents.length" class="agent-table">
@@ -510,12 +539,16 @@ async function appendMessage() {
           </div>
           <div class="field">
             <label>voice_id</label>
-            <input v-model="editForm.voice_id" type="text" placeholder="voice UUID" />
+            <select v-model="editForm.voice_id">
+              <option value="">— 不设置 —</option>
+              <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+            </select>
           </div>
         </div>
         <div class="row">
           <div class="field">
             <label>role</label>
+            <small class="field-tip">间接影响行为，不注入 LLM prompt。写入 agents_metadata 传给 LiveKit worker，多代理场景中用于识别代理身份及 Orchestrator 路由调度</small>
             <input v-model="editForm.role" type="text" />
           </div>
           <div class="field">
@@ -531,23 +564,31 @@ async function appendMessage() {
         </div>
         <div class="field">
           <label>description</label>
+          <small class="field-tip">纯元数据，不影响提示词，不传给 LiveKit worker，不进入 LLM。仅用于 API 返回和管理界面展示</small>
           <input v-model="editForm.description" type="text" />
         </div>
         <div class="field">
           <label>system_prompt</label>
+          <small class="field-tip">直接注入 LLM 的最高优先级系统指令。优先级：agent.system_prompt → identity["instructions"] → archetype.base_prompt → DEFAULT_INSTRUCTIONS，最终拼接为 system_prompt + "\n" + TTS_RULES</small>
           <textarea v-model="editForm.system_prompt" rows="2" />
         </div>
         <div class="field">
-          <label>skills（逗号分隔 UUID）</label>
-          <input v-model="editForm.skills" type="text" />
+          <label>skills</label>
+          <select v-model="editForm.skills" multiple class="multi-select">
+            <option v-for="s in skillList" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
         </div>
         <div class="field">
-          <label>knowledge_bindings（逗号分隔 UUID）</label>
-          <input v-model="editForm.knowledge_bindings" type="text" />
+          <label>knowledge_bindings</label>
+          <select v-model="editForm.knowledge_bindings" multiple class="multi-select">
+            <option v-for="k in knowledgeList" :key="k.id" :value="k.id">{{ k.name }}</option>
+          </select>
         </div>
         <div class="field">
-          <label>tool_bindings（逗号分隔 tool UUID）</label>
-          <input v-model="editForm.tool_bindings" type="text" />
+          <label>tool_bindings</label>
+          <select v-model="editForm.tool_bindings" multiple class="multi-select">
+            <option v-for="t in toolList" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
         </div>
         <div class="row" style="align-items:center">
           <div class="field" style="align-self:flex-end">
@@ -580,12 +621,16 @@ async function appendMessage() {
           </div>
           <div class="field">
             <label>voice_id</label>
-            <input v-model="newAgent.voice_id" type="text" placeholder="voice UUID" />
+            <select v-model="newAgent.voice_id">
+              <option value="">— 不设置 —</option>
+              <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+            </select>
           </div>
         </div>
         <div class="row">
           <div class="field">
             <label>role</label>
+            <small class="field-tip">间接影响行为，不注入 LLM prompt。写入 agents_metadata 传给 LiveKit worker，多代理场景中用于识别代理身份及 Orchestrator 路由调度</small>
             <input v-model="newAgent.role" type="text" placeholder="角色描述（可选）" />
           </div>
           <div class="field">
@@ -601,23 +646,31 @@ async function appendMessage() {
         </div>
         <div class="field">
           <label>description</label>
+          <small class="field-tip">纯元数据，不影响提示词，不传给 LiveKit worker，不进入 LLM。仅用于 API 返回和管理界面展示</small>
           <input v-model="newAgent.description" type="text" placeholder="可选描述" />
         </div>
         <div class="field">
           <label>system_prompt</label>
+          <small class="field-tip">直接注入 LLM 的最高优先级系统指令。优先级：agent.system_prompt → identity["instructions"] → archetype.base_prompt → DEFAULT_INSTRUCTIONS，最终拼接为 system_prompt + "\n" + TTS_RULES</small>
           <textarea v-model="newAgent.system_prompt" rows="2" placeholder="系统提示词（可选）" />
         </div>
         <div class="field">
-          <label>skills（逗号分隔 UUID）</label>
-          <input v-model="newAgent.skills" type="text" placeholder="uuid1, uuid2, ..." />
+          <label>skills</label>
+          <select v-model="newAgent.skills" multiple class="multi-select">
+            <option v-for="s in skillList" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
         </div>
         <div class="field">
-          <label>knowledge_bindings（逗号分隔 UUID）</label>
-          <input v-model="newAgent.knowledge_bindings" type="text" placeholder="uuid1, uuid2, ..." />
+          <label>knowledge_bindings</label>
+          <select v-model="newAgent.knowledge_bindings" multiple class="multi-select">
+            <option v-for="k in knowledgeList" :key="k.id" :value="k.id">{{ k.name }}</option>
+          </select>
         </div>
         <div class="field">
-          <label>tool_bindings（逗号分隔 tool UUID）</label>
-          <input v-model="newAgent.tool_bindings" type="text" placeholder="uuid1, uuid2, ..." />
+          <label>tool_bindings</label>
+          <select v-model="newAgent.tool_bindings" multiple class="multi-select">
+            <option v-for="t in toolList" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
         </div>
         <div class="row" style="align-items:center">
           <div class="field" style="align-self:flex-end">
@@ -649,6 +702,13 @@ async function appendMessage() {
         <div class="field" style="flex:2">
           <label>消息</label>
           <input v-model="chatMessage" type="text" placeholder="你好" />
+        </div>
+        <div class="field">
+          <label>voice_id（可选覆盖）</label>
+          <select v-model="chatVoiceId">
+            <option value="">— 使用 Agent 默认 —</option>
+            <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+          </select>
         </div>
       </div>
       <div class="btn-row">
@@ -708,12 +768,22 @@ async function appendMessage() {
           <input v-model="voiceInitMsg" type="text" placeholder="你好" />
         </div>
         <div class="field">
+          <label>voice_id（可选覆盖）</label>
+          <select v-model="voiceVoiceId">
+            <option value="">— 使用 Agent 默认 —</option>
+            <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+          </select>
+        </div>
+        <div class="field">
           <label>我的显示名</label>
           <input v-model="userName" type="text" placeholder="可选" />
         </div>
         <div class="field">
           <label>我的用户 ID</label>
           <input v-model="userId" type="text" placeholder="可选，作为 LiveKit identity" />
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn btn-outline" @click="randomizeUser">随机</button>
         </div>
       </div>
 
@@ -854,6 +924,17 @@ async function appendMessage() {
   font-family: monospace;
   font-size: 0.78rem;
   color: var(--text-muted, #6b7280);
+}
+.multi-select {
+  min-height: 80px;
+  width: 100%;
+}
+.field-tip {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
 }
 .editing-id {
   font-family: monospace;

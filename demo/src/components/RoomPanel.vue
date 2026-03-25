@@ -11,6 +11,7 @@ const { entries, log, clear, logError } = useLog();
 
 // ── Agent List (shared for selectors) ────────────────────────────────────────
 const agentsList = ref<AgentResponse[]>([]);
+const voiceList  = ref<string[]>([]);
 
 async function loadAgents() {
   log("获取 Agent 列表...", "info");
@@ -19,6 +20,15 @@ async function loadAgents() {
     log(`共 ${agentsList.value.length} 个 Agent`, "ok");
   } catch (err) {
     logError(err);
+  }
+}
+
+async function loadVoiceList() {
+  try {
+    const res = await client.value!.tts.listSpeakers();
+    voiceList.value = res.speakers.map(s => s.name);
+  } catch {
+    // ignore — voice list is optional
   }
 }
 
@@ -162,13 +172,17 @@ async function removeRoomAgent(agentId: string) {
 
 // ── Start Session ─────────────────────────────────────────────────────────────
 const startSessionRoomId = ref("");
+const startSessionVoiceId = ref("");
 const startedSession = ref<SessionResponse | null>(null);
 
 async function startSession() {
   if (!startSessionRoomId.value.trim()) { log("请选择 Room", "warn"); return; }
   log(`在 Room ${startSessionRoomId.value} 中创建 Session...`, "info");
   try {
-    startedSession.value = await client.value!.agent.rooms.startSession(startSessionRoomId.value);
+    startedSession.value = await client.value!.agent.rooms.startSession(
+      startSessionRoomId.value,
+      startSessionVoiceId.value ? { voice_id: startSessionVoiceId.value } : undefined,
+    );
     sessionId.value = startedSession.value.id;
     log(`Session 创建成功: ${startedSession.value.id}`, "ok");
   } catch (err) {
@@ -660,7 +674,15 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
+        <div class="field">
+          <label>voice_id（可选覆盖）</label>
+          <select v-model="startSessionVoiceId">
+            <option value="">— 使用 Agent 默认 —</option>
+            <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+          </select>
+        </div>
         <div class="field" style="align-self:flex-end">
+          <button class="btn btn-outline" @click="loadVoiceList">加载声音列表</button>
           <button class="btn btn-primary" @click="startSession">创建 Session</button>
         </div>
       </div>

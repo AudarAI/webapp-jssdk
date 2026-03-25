@@ -53,15 +53,25 @@ export class AgentApi {
    * Quick-start a voice session with an agent.
    * Returns `{session_id, room_id}` — pass `session_id` to `sessions.getLiveKitToken()` next.
    *
+   * @param options.voice_id - Override the agent's default voice for this session.
+   *
    * @example
-   * const { session_id } = await client.agent.chat(agentId, "Hello");
+   * const { session_id } = await client.agent.chat(agentId, "Hello", { voice_id: "Aria" });
    * const { token, livekit_url } = await client.agent.sessions.getLiveKitToken(session_id);
    * // Connect to LiveKit with token + livekit_url via @livekit/client SDK
    */
-  async chat(agentId: string, message: string, metadata?: Record<string, unknown>): Promise<AgentChatResponse> {
+  async chat(
+    agentId: string,
+    message: string,
+    options?: { voice_id?: string; metadata?: Record<string, unknown> },
+  ): Promise<AgentChatResponse> {
     return this._http.request<AgentChatResponse>("POST", `/v1/agent/agents/${encodeURIComponent(agentId)}/chat`, {
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, ...(metadata ? { metadata } : {}) }),
+      body: JSON.stringify({
+        message,
+        ...(options?.voice_id ? { voice_id: options.voice_id } : {}),
+        ...(options?.metadata ? { metadata: options.metadata } : {}),
+      }),
     });
   }
 }

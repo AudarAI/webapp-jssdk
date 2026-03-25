@@ -60,16 +60,26 @@ export class RoomApi {
   /**
    * Start a new session for this room.
    *
+   * Pass `voice_id` to override the agent's default voice for this session.
+   *
    * @example
-   * const session = await client.agent.rooms.startSession(roomId, { config: {}, participants: [] });
+   * const session = await client.agent.rooms.startSession(roomId, { voice_id: "Aria" });
    */
   async startSession(roomId: string, data?: SessionCreate): Promise<SessionResponse> {
+    const { voice_id, config, participants } = data ?? {};
+    const body = {
+      ...(participants !== undefined ? { participants } : {}),
+      config: {
+        ...config,
+        ...(voice_id ? { voice_id } : {}),
+      },
+    };
     return this._http.request<SessionResponse>(
       "POST",
       `/v1/agent/rooms/${encodeURIComponent(roomId)}/sessions`,
       {
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data ?? {}),
+        body: JSON.stringify(body),
       },
     );
   }

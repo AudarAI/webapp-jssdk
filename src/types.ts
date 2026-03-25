@@ -490,6 +490,8 @@ export interface Participant {
 }
 
 export interface SessionCreate {
+  /** Optional voice_id to override the agent's default voice for this session. */
+  voice_id?: string;
   config?: Record<string, unknown>;
   participants?: Participant[];
 }
