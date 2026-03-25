@@ -7,11 +7,12 @@ const emit = defineEmits<{ connected: [] }>();
 
 const { connect, connected } = useClient();
 
-const baseUrl   = ref("http://localhost:8004");
-const authMode  = ref<"pk" | "accessToken" | "apiKey">("pk");
-const cred      = ref("pk_IHDQAHeZxu6uJ66FkvVor2qGAU-1e8bMuUDZ7i0PIK4");
-const loading   = ref(false);
-const errMsg    = ref("");
+const baseUrl      = ref("http://localhost:8004");
+const authMode     = ref<"pk" | "accessToken" | "apiKey">("pk");
+const cred         = ref("pk_IHDQAHeZxu6uJ66FkvVor2qGAU-1e8bMuUDZ7i0PIK4");
+const refreshUrl   = ref("");
+const loading      = ref(false);
+const errMsg       = ref("");
 
 const credLabel = computed(() => ({
   pk:          "Publishable Key",
@@ -41,7 +42,21 @@ async function handleConnect() {
     if (authMode.value === "pk") {
       cfg = { baseUrl: url, publishableKey: c };
     } else if (authMode.value === "accessToken") {
-      cfg = { baseUrl: url, accessToken: c };
+      const rUrl = refreshUrl.value.trim();
+      cfg = {
+        baseUrl: url,
+        accessToken: c,
+        ...(rUrl ? {
+          onTokenRefresh: async () => {
+            const res = await fetch(rUrl, { method: "POST" });
+            if (!res.ok) throw new Error(`Token refresh failed: ${res.status}`);
+            const body = await res.json();
+            const token = body.access_token ?? body.token ?? body.data?.token;
+            if (!token) throw new Error("Refresh response missing token field");
+            return token;
+          }
+        } : {}),
+      };
     } else {
       cfg = { baseUrl: url, apiKey: c };
     }
@@ -75,6 +90,16 @@ async function handleConnect() {
     <div class="field">
       <label>{{ credLabel }}</label>
       <input v-model="cred" type="text" :placeholder="credPlaceholder" :disabled="connected" />
+    </div>
+
+    <div v-if="authMode === 'accessToken'" class="field">
+      <label>Token Refresh URL <span class="hint">（可选，用于 401 后自动刷新）</span></label>
+      <input
+        v-model="refreshUrl"
+        type="text"
+        placeholder="POST https://auth.example.com/token/refresh"
+        :disabled="connected"
+      />
     </div>
 
     <p v-if="errMsg" class="connect-err">{{ errMsg }}</p>

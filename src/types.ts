@@ -20,6 +20,12 @@ export interface AiVoxClientConfig {
    */
   accessToken?: string | (() => Promise<string>);
   /**
+   * Called when a 401 is received (or token nears expiry) to obtain a fresh access token.
+   * Only applicable when `accessToken` is a static string.
+   * Use this to implement Keycloak / OAuth2 token refresh logic.
+   */
+  onTokenRefresh?: () => Promise<string>;
+  /**
    * API key (ak_ prefix).
    * HTTP requests use the key directly as Bearer token.
    * WebSocket connections automatically exchange it for a session token (stk_).
