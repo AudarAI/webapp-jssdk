@@ -87,17 +87,20 @@ export class HttpClient {
   readonly _tokenManager: TokenManager;
   private readonly _wsTokenManager: TokenManager | null;
   private readonly _fetch: typeof globalThis.fetch;
+  private readonly _onTokenRefresh: (() => Promise<string>) | null;
 
   constructor(
     baseUrl: string,
     tokenManager: TokenManager,
     fetchImpl: typeof globalThis.fetch,
     wsTokenManager?: TokenManager,
+    onTokenRefresh?: () => Promise<string>,
   ) {
     this._baseUrl = baseUrl.replace(/\/$/, "");
     this._tokenManager = tokenManager;
     this._wsTokenManager = wsTokenManager ?? null;
     this._fetch = fetchImpl;
+    this._onTokenRefresh = onTokenRefresh ?? null;
   }
 
   getBaseUrl(): string {
@@ -137,9 +140,19 @@ export class HttpClient {
     const res = await this._fetch(url, { method, headers, body: options.body });
 
     if (res.status === 401) {
-      // Invalidate and retry once
-      this._tokenManager.invalidate();
-      const retryToken = await this._tokenManager.getToken();
+      let retryToken: string;
+      if (this._onTokenRefresh) {
+        // Use dedicated refresh callback to obtain a new token
+        const jwt = await this._onTokenRefresh();
+        if (!jwt) throw new AuthenticationError("onTokenRefresh returned an empty string");
+        const exp = parseJwtExp(jwt);
+        this._tokenManager.seed(jwt, exp ? exp * 1000 : null);
+        retryToken = jwt;
+      } else {
+        // Invalidate and re-fetch via existing provider
+        this._tokenManager.invalidate();
+        retryToken = await this._tokenManager.getToken();
+      }
       headers.Authorization = `Bearer ${retryToken}`;
       const retryRes = await this._fetch(url, { method, headers, body: options.body });
       return this._handleResponse<T>(retryRes, options.expectBinary);
@@ -229,35 +242,19 @@ export class AiVoxClient {
     } else if (config.accessToken) {
       const accessTokenInput = config.accessToken;
       const baseUrl = config.baseUrl.replace(/\/$/, "");
-
-      if (typeof accessTokenInput === "string" && config.onTokenRefresh) {
-        // Static JWT + external refresh callback: use onTokenRefresh as token provider
-        const refreshFn = config.onTokenRefresh;
-        tokenProvider = async () => {
-          const jwt = await refreshFn();
-          if (!jwt) throw new AuthenticationError("onTokenRefresh returned an empty string");
-          const exp = parseJwtExp(jwt);
-          return { token: jwt, expires_in: 3600, ...(exp != null ? { expires_at: exp } : {}) };
-        };
-      } else {
-        const getJwt = typeof accessTokenInput === "function"
-          ? accessTokenInput
-          : () => Promise.resolve(accessTokenInput as string);
-
-        tokenProvider = async () => {
-          const jwt = await getJwt();
-          if (!jwt) throw new AuthenticationError("accessToken resolved to an empty string");
-          const exp = parseJwtExp(jwt);
-          return { token: jwt, expires_in: 3600, ...(exp != null ? { expires_at: exp } : {}) };
-        };
-      }
-
-      const getJwtForWs = typeof accessTokenInput === "function"
+      const getJwt = typeof accessTokenInput === "function"
         ? accessTokenInput
         : () => Promise.resolve(accessTokenInput as string);
 
+      tokenProvider = async () => {
+        const jwt = await getJwt();
+        if (!jwt) throw new AuthenticationError("accessToken resolved to an empty string");
+        const exp = parseJwtExp(jwt);
+        return { token: jwt, expires_in: 3600, ...(exp != null ? { expires_at: exp } : {}) };
+      };
+
       wsTokenProvider = async () => {
-        const jwt = await getJwtForWs();
+        const jwt = await getJwt();
         if (!jwt) throw new AuthenticationError("accessToken resolved to an empty string");
         const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
           method: "POST",
@@ -292,16 +289,16 @@ export class AiVoxClient {
 
     this._tokenManager = new TokenManager(tokenProvider, threshold);
 
-    // Seed initial JWT when using static accessToken + onTokenRefresh
-    if (typeof config.accessToken === "string" && config.onTokenRefresh) {
-      const initExp = parseJwtExp(config.accessToken);
-      this._tokenManager.seed(config.accessToken, initExp ? initExp * 1000 : null);
-    }
-
     const wsTokenManager = wsTokenProvider
       ? new TokenManager(wsTokenProvider, threshold)
       : undefined;
 
-    this.http = new HttpClient(config.baseUrl, this._tokenManager, fetchImpl, wsTokenManager);
+    this.http = new HttpClient(
+      config.baseUrl,
+      this._tokenManager,
+      fetchImpl,
+      wsTokenManager,
+      config.onTokenRefresh,
+    );
   }
 }
