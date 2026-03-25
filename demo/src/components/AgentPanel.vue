@@ -22,9 +22,9 @@ async function loadDropdownData() {
   if (!client.value) return;
   try {
     const [skills, knowledge, tools, voices] = await Promise.all([
-      client.value.skill.list(),
-      client.value.knowledge.list(),
-      client.value.tool.list(),
+      client.value.agent.skills.list(),
+      client.value.agent.knowledge.list(),
+      client.value.agent.tools.list(),
       client.value.tts.listSpeakers(),
     ]);
     skillList.value     = skills;
@@ -60,6 +60,18 @@ async function listAgents() {
       loadDropdownData(),
     ]);
     log(`共 ${agents.value.length} 个 Agent`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
+
+const platformAgents = ref<AgentResponse[]>([]);
+
+async function listPlatformAgents() {
+  log("获取平台 Agent 列表...", "info");
+  try {
+    platformAgents.value = await client.value!.agent.listPlatformAgents();
+    log(`平台共 ${platformAgents.value.length} 个 Agent`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -486,8 +498,31 @@ async function appendMessage() {
       <h3>Agents</h3>
       <div class="row">
         <button class="btn btn-outline" @click="listAgents">获取 Agent 列表</button>
+        <button class="btn btn-outline" @click="listPlatformAgents">获取平台 Agent</button>
         <button class="btn btn-outline" @click="loadDropdownData">刷新下拉选项</button>
       </div>
+
+      <table v-if="platformAgents.length" class="agent-table">
+        <caption style="text-align:left;font-size:0.8rem;color:var(--text-muted,#6b7280);margin-bottom:0.3rem">平台 Agent（只读，任何租户可使用）</caption>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>名称</th>
+            <th>语言</th>
+            <th>voice_id</th>
+            <th>role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="a in platformAgents" :key="a.id">
+            <td class="id-cell" :title="a.id">{{ a.id.slice(0, 8) }}…</td>
+            <td>{{ a.name }}</td>
+            <td>{{ a.language ?? "—" }}</td>
+            <td>{{ a.voice_id ?? "—" }}</td>
+            <td>{{ a.role ?? "—" }}</td>
+          </tr>
+        </tbody>
+      </table>
 
       <table v-if="agents.length" class="agent-table">
         <thead>

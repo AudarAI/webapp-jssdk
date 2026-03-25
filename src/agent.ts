@@ -27,6 +27,11 @@ export class AgentApi {
     return this._http.request<AgentResponse[]>("GET", "/v1/agent/agents");
   }
 
+  /** Returns all platform agents. Accessible by any authenticated user regardless of tenant. */
+  async listPlatformAgents(): Promise<AgentResponse[]> {
+    return this._http.request<AgentResponse[]>("GET", "/v1/agent/agents/platform");
+  }
+
   async createAgent(data: AgentCreate): Promise<AgentResponse> {
     return this._http.request<AgentResponse>("POST", "/v1/agent/agents", {
       headers: { "Content-Type": "application/json" },

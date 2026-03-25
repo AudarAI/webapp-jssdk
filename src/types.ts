@@ -367,6 +367,7 @@ export interface AgentCreate {
   memory_policy?: MemoryPolicy;
   tool_bindings?: ToolBinding[];
   is_public?: boolean;
+  is_platform?: boolean;
   system_prompt?: string;
   language?: string;
   role?: string;
@@ -387,6 +388,7 @@ export interface AgentUpdate {
   memory_policy?: MemoryPolicy;
   tool_bindings?: ToolBinding[];
   is_public?: boolean;
+  is_platform?: boolean;
   status?: string;
   system_prompt?: string;
   language?: string;
@@ -408,6 +410,7 @@ export interface AgentResponse {
   memory_policy: MemoryPolicy;
   tool_bindings: ToolBinding[];
   is_public: boolean;
+  is_platform: boolean;
   status: string;
   system_prompt: string;
   language: string | null;
