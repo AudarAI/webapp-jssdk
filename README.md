@@ -285,6 +285,298 @@ ws.stop();
 
 ---
 
+## Agent 管理
+
+### 列出 / 创建 / 更新 / 删除 Agent
+
+```typescript
+// 列出当前租户的所有 agent
+const agents = await client.agent.listAgents();
+
+// 列出平台预设 agent（所有认证用户可见）
+const platformAgents = await client.agent.listPlatformAgents();
+
+// 创建 agent
+const agent = await client.agent.createAgent({
+  name: '客服助手',
+  description: '面向终端用户的语音客服 agent',
+  system_prompt: '你是一名专业客服，请用简洁友好的语气回答用户问题。',
+  voice_id: 'zh-CN-female',
+  language: 'zh',
+  archetype_id: 'archetype-uuid',     // 可选
+  knowledge_bindings: ['kb-uuid'],    // 绑定知识库
+  skills: ['skill-uuid'],             // 绑定技能
+  memory_policy: { enable_memory: true, num_history_turns: 10 },
+});
+
+// 获取 / 更新 / 删除
+const detail = await client.agent.getAgent(agent.id);
+await client.agent.updateAgent(agent.id, { name: '新名称' });
+await client.agent.deleteAgent(agent.id);
+```
+
+### 快速发起对话（chat）
+
+`chat()` 返回 `{ session_id, room_id }`，再调用 `getLiveKitToken()` 即可接入语音。
+
+```typescript
+const { session_id } = await client.agent.chat(agentId, '你好', {
+  voice_id: 'zh-CN-female',  // 可选，覆盖 agent 默认声音
+});
+
+// 获取 LiveKit token，用于加入语音房间
+const { token, livekit_url } = await client.agent.sessions.getLiveKitToken(session_id);
+// 使用 @livekit/client SDK 连接
+```
+
+---
+
+## Archetype（原型）
+
+原型定义了 agent 的基础 prompt 和默认技能，可复用于多个 agent。
+
+```typescript
+// CRUD
+const archetypes = await client.archetype.list();
+const arch = await client.archetype.create({
+  name: '客服原型',
+  description: '通用客服角色定义',
+  base_prompt: '你是一名专业客服...',
+});
+const detail = await client.archetype.get(arch.id);
+await client.archetype.update(arch.id, { base_prompt: '更新后的 prompt' });
+await client.archetype.delete(arch.id);
+```
+
+---
+
+## Knowledge（知识库）
+
+### CRUD
+
+```typescript
+const kbs = await client.knowledge.list();
+const kb = await client.knowledge.create({
+  name: '产品手册',
+  description: '产品相关 FAQ 和操作说明',
+});
+await client.knowledge.update(kb.id, { name: '产品手册 v2' });
+await client.knowledge.delete(kb.id);
+```
+
+### 摄取内容
+
+```typescript
+// 摄取纯文本（异步，返回 202）
+await client.knowledge.ingest(kb.id, {
+  source_type: 'text',
+  text: '这是要摄取的文本内容...',
+  source_label: '手动录入',
+  language: 'zh',
+});
+
+// 摄取 URL
+await client.knowledge.ingest(kb.id, {
+  source_type: 'url',
+  url: 'https://example.com/docs',
+});
+
+// 上传文件
+const file = document.querySelector('input[type=file]').files[0];
+await client.knowledge.ingestFile(kb.id, file, file.name);
+```
+
+### 向量检索
+
+```typescript
+const results = await client.knowledge.search(kb.id, {
+  query: '如何重置密码',
+  top_k: 5,      // 返回条数，默认 5
+  language: 'zh',
+});
+
+results.forEach(r => {
+  console.log(`[${r.score.toFixed(3)}] ${r.content}`);
+});
+```
+
+---
+
+## Tool（工具）
+
+### CRUD
+
+```typescript
+const tools = await client.tool.list();
+
+// HTTP 工具
+const httpTool = await client.tool.create({
+  name: '天气查询',
+  tool_type: 'http',
+  config: {
+    url: 'https://api.weather.com/v1/current',
+    method: 'GET',
+    headers: { 'X-API-Key': 'xxx' },
+  },
+});
+
+// 内置工具（Builtin）
+const builtinTool = await client.tool.create({
+  name: '网页搜索',
+  tool_type: 'builtin',
+  config: { toolkit: 'web_search' },
+});
+
+// MCP 工具
+const mcpTool = await client.tool.create({
+  name: 'MCP 工具',
+  tool_type: 'mcp',
+  config: {
+    transport: 'sse',
+    server_url: 'https://mcp.example.com/sse',
+  },
+});
+
+await client.tool.update(httpTool.id, { name: '天气查询 v2' });
+await client.tool.delete(httpTool.id);
+```
+
+### 查看内置工具目录
+
+```typescript
+const builtins = await client.tool.listBuiltins();
+builtins.forEach(b => {
+  console.log(b.toolkit, '-', b.description);
+});
+```
+
+---
+
+## Skill（技能）
+
+技能是注入到 agent system prompt 的 Markdown 片段，用于扩展 agent 行为。
+
+```typescript
+const skills = await client.skill.list();
+const skill = await client.skill.create({
+  name: '礼貌用语',
+  description: '要求 agent 始终使用敬语',
+  content: '## 礼仪规范\n- 始终使用"您"称呼用户\n- 回答结尾加上"请问还有什么需要帮助的吗？"',
+});
+await client.skill.update(skill.id, { content: '更新后的技能内容' });
+await client.skill.delete(skill.id);
+```
+
+---
+
+## Room（房间）
+
+房间是承载多轮对话 session 的容器，可绑定多个 agent。
+
+### CRUD
+
+```typescript
+const rooms = await client.agent.rooms.list();
+const room = await client.agent.rooms.create({
+  name: '客服大厅',
+  description: '面向用户的实时语音客服房间',
+  talking_style: 'sequential',  // sequential | moderator_led | freeform
+  visibility: 'private',        // private | shared | public
+  agent_ids: [agentId],
+});
+await client.agent.rooms.update(room.id, { name: '新名称' });
+await client.agent.rooms.delete(room.id);
+```
+
+### 管理房间内的 Agent
+
+```typescript
+// 查看房间 agent 列表
+const { agent_ids } = await client.agent.rooms.listAgents(room.id);
+
+// 添加 / 移除 agent
+await client.agent.rooms.addAgent(room.id, agentId);
+await client.agent.rooms.removeAgent(room.id, agentId);
+```
+
+### 创建 / 列出 Session
+
+```typescript
+// 在房间内开启新 session
+const session = await client.agent.rooms.startSession(room.id, {
+  voice_id: 'zh-CN-female',  // 可选，覆盖 agent 默认声音
+});
+
+// 列出房间所有 session
+const sessions = await client.agent.rooms.listSessions(room.id);
+```
+
+---
+
+## Session（会话）
+
+### 生命周期
+
+```typescript
+// 列出当前租户所有 session（支持分页和状态过滤）
+const { data, total } = await client.agent.sessions.list({
+  status: 'running',
+  page: 1,
+  page_size: 20,
+});
+
+// 查看单个 session
+const session = await client.agent.sessions.get(sessionId);
+
+// 暂停 / 恢复 / 结束
+await client.agent.sessions.pause(sessionId);
+await client.agent.sessions.resume(sessionId);
+await client.agent.sessions.end(sessionId);
+
+// 查看参与者
+const participants = await client.agent.sessions.getParticipants(sessionId);
+```
+
+### 消息记录
+
+```typescript
+// 查看消息历史
+const { data: messages } = await client.agent.sessions.listMessages(sessionId, {
+  page: 1,
+  page_size: 50,
+});
+
+// 追加消息
+await client.agent.sessions.appendMessage(sessionId, {
+  role: 'user',
+  content: '请帮我查一下订单状态',
+  speaker_type: 'user',
+  speaker_ref_id: 'user-uuid',
+});
+```
+
+### 加入语音（LiveKit）
+
+```typescript
+// 获取 LiveKit token（首次加入）
+const { token, livekit_url, room_name } = await client.agent.sessions.getLiveKitToken(sessionId, {
+  user_id: 'end-user-123',     // 第三方用户 ID，用作 LiveKit participant identity
+  user_name: '张三',            // 显示名称
+});
+
+// 以新参与者身份加入已有 session
+const { token, livekit_url } = await client.agent.sessions.join(sessionId, {
+  user_id: 'end-user-456',
+});
+
+// 使用 @livekit/client 连接
+// import { Room } from '@livekit/client';
+// const room = new Room();
+// await room.connect(livekit_url, token);
+```
+
+---
+
 ## 错误处理
 
 ```typescript
@@ -341,4 +633,3 @@ const client = createAiVoxClient({
 ```
 
 
-ak_eubCnq4Ap0fVL_pJ7UNvmIn2135GzFfG0JoUENyQJyA
