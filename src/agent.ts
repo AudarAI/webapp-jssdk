@@ -3,6 +3,7 @@ import { AgentCreate, AgentUpdate, AgentResponse, AgentChatResponse } from "./ty
 import { KnowledgeApi } from "./knowledge";
 import { ToolApi } from "./tool";
 import { SkillApi } from "./skill";
+import { ArchetypeApi } from "./archetype";
 import { RoomApi } from "./room";
 import { SessionApi } from "./session";
 
@@ -10,6 +11,7 @@ export class AgentApi {
   readonly knowledge: KnowledgeApi;
   readonly tools: ToolApi;
   readonly skills: SkillApi;
+  readonly archetypes: ArchetypeApi;
   readonly rooms: RoomApi;
   readonly sessions: SessionApi;
 
@@ -17,6 +19,7 @@ export class AgentApi {
     this.knowledge = new KnowledgeApi(_http);
     this.tools = new ToolApi(_http);
     this.skills = new SkillApi(_http);
+    this.archetypes = new ArchetypeApi(_http);
     this.rooms = new RoomApi(_http);
     this.sessions = new SessionApi(_http);
   }

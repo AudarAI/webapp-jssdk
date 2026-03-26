@@ -1,6 +1,6 @@
 import { shallowRef, ref, readonly, markRaw } from "vue";
 import { createAiVoxClient, type AiVoxClientConfig } from "@aivox/sdk";
-import type { AiVoxClient, TtsApi, SttApi, TranslationApi, AgentApi, KnowledgeApi, ToolApi, SkillApi } from "@aivox/sdk";
+import type { AiVoxClient, TtsApi, SttApi, TranslationApi, AgentApi, KnowledgeApi, ToolApi, SkillApi, ArchetypeApi } from "@aivox/sdk";
 
 export type ConnectedClient = AiVoxClient & {
   tts: TtsApi;
@@ -10,6 +10,7 @@ export type ConnectedClient = AiVoxClient & {
   knowledge: KnowledgeApi;
   tool: ToolApi;
   skill: SkillApi;
+  archetype: ArchetypeApi;
 };
 
 // Module-level singleton — shared across all components

@@ -734,6 +734,36 @@ export interface SkillResponse {
   updated_at: string;
 }
 
+// ── Archetype types ───────────────────────────────────────────────────────────
+
+export interface ArchetypeCreate {
+  name: string;
+  description?: string;
+  base_prompt?: string;
+  default_skills?: unknown[];
+  default_channels?: unknown[];
+}
+
+export interface ArchetypeUpdate {
+  name?: string;
+  description?: string;
+  base_prompt?: string;
+  default_skills?: unknown[];
+  default_channels?: unknown[];
+}
+
+export interface ArchetypeResponse {
+  id: string;
+  tenant_id: string | null;
+  name: string;
+  description: string;
+  base_prompt: string;
+  default_skills: unknown[];
+  default_channels: unknown[];
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Voice types ───────────────────────────────────────────────────────────────
 
 export interface LiveKitTokenResponse {

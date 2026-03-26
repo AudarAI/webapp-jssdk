@@ -6,6 +6,7 @@ export { AgentApi } from "./agent";
 export { KnowledgeApi } from "./knowledge";
 export { ToolApi } from "./tool";
 export { SkillApi } from "./skill";
+export { ArchetypeApi } from "./archetype";
 export { RoomApi } from "./room";
 export { SessionApi } from "./session";
 export type { TranscribeResult } from "./stt";
@@ -89,6 +90,9 @@ export type {
   SkillCreate,
   SkillUpdate,
   SkillResponse,
+  ArchetypeCreate,
+  ArchetypeUpdate,
+  ArchetypeResponse,
 } from "./types";
 export { AiVoxError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
 
@@ -100,6 +104,7 @@ import { AgentApi } from "./agent";
 import { KnowledgeApi } from "./knowledge";
 import { ToolApi } from "./tool";
 import { SkillApi } from "./skill";
+import { ArchetypeApi } from "./archetype";
 import { RoomApi } from "./room";
 import { SessionApi } from "./session";
 import type { AiVoxClientConfig } from "./types";
@@ -130,6 +135,7 @@ export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
   knowledge: KnowledgeApi;
   tool: ToolApi;
   skill: SkillApi;
+  archetype: ArchetypeApi;
 } {
   const client = new AiVoxClient(config) as AiVoxClient & {
     tts: TtsApi;
@@ -139,6 +145,7 @@ export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
     knowledge: KnowledgeApi;
     tool: ToolApi;
     skill: SkillApi;
+    archetype: ArchetypeApi;
   };
   client.tts = new TtsApi(client.http);
   client.stt = new SttApi(client.http);
@@ -147,5 +154,6 @@ export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
   client.knowledge = new KnowledgeApi(client.http);
   client.tool = new ToolApi(client.http);
   client.skill = new SkillApi(client.http);
+  client.archetype = new ArchetypeApi(client.http);
   return client;
 }
