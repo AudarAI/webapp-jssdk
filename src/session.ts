@@ -1,10 +1,17 @@
 import { HttpClient } from "./client";
-import { SessionResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest } from "./types";
+import { SessionResponse, SessionWithContextResponse, SessionListResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest } from "./types";
 
 export class SessionApi {
   constructor(private readonly _http: HttpClient) {}
 
   // ── Session lifecycle ─────────────────────────────────────────────────────
+
+  /** List all sessions for the tenant, with associated room and agent context. */
+  async list(params?: { status?: string; page?: number; page_size?: number }): Promise<SessionListResponse> {
+    return this._http.request<SessionListResponse>("GET", "/v1/agent/sessions", {
+      query: params as Record<string, string | number | undefined>,
+    });
+  }
 
   async get(sessionId: string): Promise<SessionResponse> {
     return this._http.request<SessionResponse>("GET", `/v1/agent/sessions/${encodeURIComponent(sessionId)}`);

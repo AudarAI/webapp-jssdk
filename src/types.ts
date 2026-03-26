@@ -548,6 +548,27 @@ export interface SessionResponse {
   created_at: string;
 }
 
+export interface RoomSummary {
+  id: string;
+  name: string;
+  room_type: string;
+  visibility: string;
+  talking_style: string;
+}
+
+export interface SessionWithContextResponse extends SessionResponse {
+  room: RoomSummary | null;
+  /** Agent UUIDs extracted from session participants. */
+  agent_ids: string[];
+}
+
+export interface SessionListResponse {
+  data: SessionWithContextResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 // ── Message types ─────────────────────────────────────────────────────────────
 
 export interface MessageCreate {

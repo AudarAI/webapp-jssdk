@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
+import { ref, computed, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, MessageResponse, Participant, SkillResponse, ToolResponse } from "@aivox/sdk";
+import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, SessionWithContextResponse, SessionListResponse, MessageResponse, Participant, SkillResponse, ToolResponse } from "@aivox/sdk";
 import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant as LkParticipantBase } from "livekit-client";
 
 const { client } = useClient();
@@ -245,6 +245,28 @@ async function listRoomSessions() {
   try {
     roomSessions.value = await client.value!.agent.rooms.listSessions(listSessionsRoomId.value);
     log(`共 ${roomSessions.value.length} 个 Session`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
+
+// ── All Sessions (with context) ───────────────────────────────────────────────
+const sessionListRes = ref<SessionListResponse | null>(null);
+const allSessions = computed(() => sessionListRes.value?.data ?? []);
+const sessionStatusFilter = ref("");
+const sessionPage = ref(1);
+const sessionPageSize = ref(20);
+
+async function listAllSessions(page = sessionPage.value) {
+  sessionPage.value = page;
+  log(`查询 Session 列表（第 ${page} 页）...`, "info");
+  try {
+    sessionListRes.value = await client.value!.agent.sessions.list({
+      ...(sessionStatusFilter.value ? { status: sessionStatusFilter.value } : {}),
+      page,
+      page_size: sessionPageSize.value,
+    });
+    log(`共 ${sessionListRes.value.total} 个 Session`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -821,7 +843,84 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
       </div>
     </div>
 
-    <!-- Card 4b: 查询 Room 已有 Session 列表 -->
+    <!-- Card 4b: 全部 Session 列表（关联 Room + Agent） -->
+    <div class="card">
+      <h3>全部 Session 列表</h3>
+      <div class="row">
+        <div class="field">
+          <label>状态筛选</label>
+          <select v-model="sessionStatusFilter">
+            <option value="">全部</option>
+            <option value="created">created</option>
+            <option value="preparing">preparing</option>
+            <option value="running">running</option>
+            <option value="paused">paused</option>
+            <option value="completed">completed</option>
+            <option value="failed">failed</option>
+            <option value="aborted">aborted</option>
+          </select>
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn btn-outline" @click="listAllSessions(1)">查询</button>
+        </div>
+      </div>
+
+      <div v-if="sessionListRes" class="table-wrap">
+        <table class="room-table">
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>状态</th>
+              <th>Room</th>
+              <th>Talking Style</th>
+              <th>Agents</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in allSessions" :key="s.id">
+              <td class="mono" :title="s.id">{{ s.id.slice(0, 8) }}…</td>
+              <td><span :class="`status-${s.status}`">{{ s.status }}</span></td>
+              <td>
+                <span v-if="s.room" class="room-ref" :title="s.room.id">
+                  {{ s.room.name }}
+                  <span class="muted-tag">{{ s.room.room_type }}</span>
+                </span>
+                <span v-else class="muted-tag">—</span>
+              </td>
+              <td>{{ s.room?.talking_style ?? "—" }}</td>
+              <td>
+                <span v-if="s.agent_ids.length" class="agent-chips">
+                  <span v-for="aid in s.agent_ids" :key="aid" class="agent-chip" :title="aid">
+                    {{ agentsList.find(a => a.id === aid)?.name ?? aid.slice(0, 8) + '…' }}
+                  </span>
+                </span>
+                <span v-else class="muted-tag">—</span>
+              </td>
+              <td>{{ new Date(s.created_at).toLocaleString() }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline" @click="sessionId = s.id">选用</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- 分页 -->
+      <div v-if="sessionListRes && sessionListRes.total > sessionPageSize" class="pagination-row">
+        <button class="btn btn-sm btn-outline" :disabled="sessionPage <= 1" @click="listAllSessions(sessionPage - 1)">上一页</button>
+        <span class="page-info">{{ sessionPage }} / {{ Math.ceil(sessionListRes.total / sessionPageSize) }}（共 {{ sessionListRes.total }} 条）</span>
+        <button class="btn btn-sm btn-outline" :disabled="sessionPage * sessionPageSize >= sessionListRes.total" @click="listAllSessions(sessionPage + 1)">下一页</button>
+        <select v-model.number="sessionPageSize" @change="listAllSessions(1)" class="page-size-select">
+          <option :value="10">10 条/页</option>
+          <option :value="20">20 条/页</option>
+          <option :value="50">50 条/页</option>
+        </select>
+      </div>
+      <div v-if="!sessionListRes" class="empty-tip">暂无数据，或尚未查询</div>
+    </div>
+
+    <!-- Card 4d: 查询指定 Room 的 Session 列表 -->
     <div class="card">
       <h3>查询 Room Session 列表</h3>
       <div class="row">
@@ -1126,6 +1225,44 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
   color: var(--text-muted, #9ca3af);
   margin-top: 0.25rem;
   display: block;
+}
+.pagination-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+.page-info {
+  color: var(--text-muted, #6b7280);
+}
+.page-size-select {
+  margin-left: auto;
+  font-size: 0.82rem;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+}
+.muted-tag {
+  font-size: 0.72rem;
+  color: var(--text-muted, #9ca3af);
+  margin-left: 0.25rem;
+}
+.room-ref {
+  font-size: 0.83rem;
+}
+.agent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.agent-chip {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #5b21b6;
+  font-size: 0.73rem;
+  font-family: monospace;
 }
 .visibility-private { color: #6b7280; }
 .visibility-shared  { color: #d97706; font-weight: 600; }
