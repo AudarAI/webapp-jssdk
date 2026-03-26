@@ -449,6 +449,16 @@ export interface RoomCreate {
   config?: Record<string, unknown>;
   /** Agent UUIDs allowed in this room. */
   agent_ids?: string[];
+  /** Access control: "private" (default) | "shared" | "public" */
+  visibility?: "private" | "shared" | "public";
+  /** Conversation flow mode: "sequential" (default) | "moderator_led" | "freeform" */
+  talking_style?: "sequential" | "moderator_led" | "freeform";
+  /** Prompt rules used when talking_style is "freeform". */
+  speaking_rules?: string;
+  /** Skill UUIDs bound to this room. */
+  skill_ids?: string[];
+  /** Tool UUIDs bound to this room. */
+  tool_ids?: string[];
 }
 
 export interface RoomUpdate {
@@ -459,6 +469,11 @@ export interface RoomUpdate {
   policies?: Record<string, unknown>;
   config?: Record<string, unknown>;
   agent_ids?: string[];
+  visibility?: "private" | "shared" | "public";
+  talking_style?: "sequential" | "moderator_led" | "freeform";
+  speaking_rules?: string;
+  skill_ids?: string[];
+  tool_ids?: string[];
 }
 
 export interface RoomResponse {
@@ -472,6 +487,11 @@ export interface RoomResponse {
   policies: Record<string, unknown>;
   config: Record<string, unknown>;
   agent_ids: string[];
+  visibility: string;
+  talking_style: string;
+  speaking_rules: string;
+  skill_ids: string[];
+  tool_ids: string[];
   status: string;
   created_at: string;
   updated_at: string;
@@ -485,6 +505,7 @@ export interface RoomAgentListResponse {
   room_id: string;
   agent_ids: string[];
 }
+
 
 // ── Session types ─────────────────────────────────────────────────────────────
 

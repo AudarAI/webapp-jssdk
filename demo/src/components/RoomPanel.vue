@@ -3,7 +3,7 @@ import { ref, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, MessageResponse, Participant } from "@aivox/sdk";
+import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, MessageResponse, Participant, SkillResponse, ToolResponse } from "@aivox/sdk";
 import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant as LkParticipantBase } from "livekit-client";
 
 const { client } = useClient();
@@ -21,6 +21,21 @@ async function loadAgents() {
   } catch (err) {
     logError(err);
   }
+}
+
+const skillsList = ref<SkillResponse[]>([]);
+const toolsList  = ref<ToolResponse[]>([]);
+
+async function loadSkills() {
+  try {
+    skillsList.value = await client.value!.agent.skills.list();
+  } catch { /* ignore */ }
+}
+
+async function loadTools() {
+  try {
+    toolsList.value = await client.value!.agent.tools.list();
+  } catch { /* ignore */ }
 }
 
 async function loadVoiceList() {
@@ -46,7 +61,15 @@ async function listRooms() {
 }
 
 // ── Create Room ───────────────────────────────────────────────────────────────
-const newRoom = ref({ name: "", description: "", room_type: "", room_prompt: "", agent_ids: [] as string[] });
+const newRoom = ref({
+  name: "", description: "", room_type: "", room_prompt: "",
+  agent_ids: [] as string[],
+  visibility: "private" as "private" | "shared" | "public",
+  talking_style: "sequential" as "sequential" | "moderator_led" | "freeform",
+  speaking_rules: "",
+  skill_ids: [] as string[],
+  tool_ids: [] as string[],
+});
 
 async function createRoom() {
   if (!newRoom.value.name.trim()) { log("请填写 Room 名称", "warn"); return; }
@@ -58,10 +81,15 @@ async function createRoom() {
       room_type: newRoom.value.room_type || undefined,
       room_prompt: newRoom.value.room_prompt || undefined,
       agent_ids: newRoom.value.agent_ids.length ? newRoom.value.agent_ids : undefined,
+      visibility: newRoom.value.visibility,
+      talking_style: newRoom.value.talking_style,
+      speaking_rules: newRoom.value.speaking_rules || undefined,
+      skill_ids: newRoom.value.skill_ids.length ? newRoom.value.skill_ids : undefined,
+      tool_ids: newRoom.value.tool_ids.length ? newRoom.value.tool_ids : undefined,
     });
     rooms.value.push(created);
     log(`Room 创建成功: ${created.id}`, "ok");
-    newRoom.value = { name: "", description: "", room_type: "", room_prompt: "", agent_ids: [] };
+    newRoom.value = { name: "", description: "", room_type: "", room_prompt: "", agent_ids: [], visibility: "private", talking_style: "sequential", speaking_rules: "", skill_ids: [], tool_ids: [] };
   } catch (err) {
     logError(err);
   }
@@ -69,7 +97,14 @@ async function createRoom() {
 
 // ── Edit Room ─────────────────────────────────────────────────────────────────
 const editingRoomId = ref<string | null>(null);
-const editRoomForm = ref({ name: "", description: "", room_prompt: "", agent_ids: [] as string[] });
+const editRoomForm = ref({
+  name: "", description: "", room_prompt: "", agent_ids: [] as string[],
+  visibility: "private" as "private" | "shared" | "public",
+  talking_style: "sequential" as "sequential" | "moderator_led" | "freeform",
+  speaking_rules: "",
+  skill_ids: [] as string[],
+  tool_ids: [] as string[],
+});
 
 function startEditRoom(r: RoomResponse) {
   editingRoomId.value = r.id;
@@ -78,6 +113,11 @@ function startEditRoom(r: RoomResponse) {
     description: r.description,
     room_prompt: r.room_prompt,
     agent_ids: [...r.agent_ids],
+    visibility: (r.visibility || "private") as "private" | "shared" | "public",
+    talking_style: (r.talking_style || "sequential") as "sequential" | "moderator_led" | "freeform",
+    speaking_rules: r.speaking_rules || "",
+    skill_ids: [...(r.skill_ids || [])],
+    tool_ids: [...(r.tool_ids || [])],
   };
 }
 
@@ -92,6 +132,11 @@ async function saveEditRoom() {
       description: editRoomForm.value.description || undefined,
       room_prompt: editRoomForm.value.room_prompt || undefined,
       agent_ids: editRoomForm.value.agent_ids.length ? editRoomForm.value.agent_ids : undefined,
+      visibility: editRoomForm.value.visibility,
+      talking_style: editRoomForm.value.talking_style,
+      speaking_rules: editRoomForm.value.speaking_rules || undefined,
+      skill_ids: editRoomForm.value.skill_ids,
+      tool_ids: editRoomForm.value.tool_ids,
     });
     const idx = rooms.value.findIndex(r => r.id === updated.id);
     if (idx >= 0) rooms.value[idx] = updated;
@@ -510,6 +555,8 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             <th>ID</th>
             <th>名称</th>
             <th>类型</th>
+            <th>Visibility</th>
+            <th>Talking Style</th>
             <th>Agents</th>
             <th>状态</th>
             <th>创建时间</th>
@@ -521,6 +568,8 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             <td class="id-cell" :title="room.id">{{ room.id.slice(0, 8) }}…</td>
             <td>{{ room.name }}</td>
             <td>{{ room.room_type }}</td>
+            <td><span :class="`visibility-${room.visibility}`">{{ room.visibility }}</span></td>
+            <td>{{ room.talking_style }}</td>
             <td>{{ room.agent_ids.length }}</td>
             <td><span :class="`status-${room.status}`">{{ room.status }}</span></td>
             <td>{{ new Date(room.created_at).toLocaleString() }}</td>
@@ -549,12 +598,48 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <label>room_prompt</label>
           <textarea v-model="editRoomForm.room_prompt" rows="2" />
         </div>
+        <div class="row">
+          <div class="field">
+            <label>visibility</label>
+            <select v-model="editRoomForm.visibility">
+              <option value="private">private</option>
+              <option value="shared">shared</option>
+              <option value="public">public</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>talking_style</label>
+            <select v-model="editRoomForm.talking_style">
+              <option value="sequential">sequential</option>
+              <option value="moderator_led">moderator_led</option>
+              <option value="freeform">freeform</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" v-if="editRoomForm.talking_style === 'freeform'">
+          <label>speaking_rules</label>
+          <textarea v-model="editRoomForm.speaking_rules" rows="2" placeholder="Freeform 模式的对话规则提示词" />
+        </div>
         <div class="field">
           <label>agent_ids</label>
           <select v-model="editRoomForm.agent_ids" multiple class="multi-select">
             <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
           <span class="hint-text">按住 Ctrl / Cmd 多选</span>
+        </div>
+        <div class="field">
+          <label>skill_ids</label>
+          <select v-model="editRoomForm.skill_ids" multiple class="multi-select">
+            <option v-for="s in skillsList" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
+          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadSkills">加载 Skill 列表</a></span>
+        </div>
+        <div class="field">
+          <label>tool_ids</label>
+          <select v-model="editRoomForm.tool_ids" multiple class="multi-select">
+            <option v-for="t in toolsList" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
+          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadTools">加载 Tool 列表</a></span>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary" @click="saveEditRoom">保存</button>
@@ -583,12 +668,48 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <label>room_prompt</label>
           <textarea v-model="newRoom.room_prompt" rows="2" placeholder="注入到此 Room 所有 Session 的系统提示（可选）" />
         </div>
+        <div class="row">
+          <div class="field">
+            <label>visibility</label>
+            <select v-model="newRoom.visibility">
+              <option value="private">private</option>
+              <option value="shared">shared</option>
+              <option value="public">public</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>talking_style</label>
+            <select v-model="newRoom.talking_style">
+              <option value="sequential">sequential</option>
+              <option value="moderator_led">moderator_led</option>
+              <option value="freeform">freeform</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" v-if="newRoom.talking_style === 'freeform'">
+          <label>speaking_rules</label>
+          <textarea v-model="newRoom.speaking_rules" rows="2" placeholder="Freeform 模式的对话规则提示词" />
+        </div>
         <div class="field">
           <label>agent_ids</label>
           <select v-model="newRoom.agent_ids" multiple class="multi-select">
             <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
           <span class="hint-text">按住 Ctrl / Cmd 多选</span>
+        </div>
+        <div class="field">
+          <label>skill_ids</label>
+          <select v-model="newRoom.skill_ids" multiple class="multi-select">
+            <option v-for="s in skillsList" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
+          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadSkills">加载 Skill 列表</a></span>
+        </div>
+        <div class="field">
+          <label>tool_ids</label>
+          <select v-model="newRoom.tool_ids" multiple class="multi-select">
+            <option v-for="t in toolsList" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
+          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadTools">加载 Tool 列表</a></span>
         </div>
         <button class="btn btn-primary" @click="createRoom">创建 Room</button>
       </div>
@@ -655,8 +776,13 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         <div><strong>name:</strong> {{ roomDetail.name }}</div>
         <div><strong>room_type:</strong> {{ roomDetail.room_type }}</div>
         <div><strong>status:</strong> <span :class="`status-${roomDetail.status}`">{{ roomDetail.status }}</span></div>
+        <div><strong>visibility:</strong> {{ roomDetail.visibility }}</div>
+        <div><strong>talking_style:</strong> {{ roomDetail.talking_style }}</div>
+        <div v-if="roomDetail.speaking_rules"><strong>speaking_rules:</strong> {{ roomDetail.speaking_rules }}</div>
         <div><strong>room_prompt:</strong> {{ roomDetail.room_prompt || "—" }}</div>
         <div><strong>agent_ids:</strong> {{ roomDetail.agent_ids.length ? roomDetail.agent_ids.join(", ") : "—" }}</div>
+        <div><strong>skill_ids:</strong> {{ roomDetail.skill_ids?.length ? roomDetail.skill_ids.join(", ") : "—" }}</div>
+        <div><strong>tool_ids:</strong> {{ roomDetail.tool_ids?.length ? roomDetail.tool_ids.join(", ") : "—" }}</div>
         <div><strong>created_at:</strong> {{ new Date(roomDetail.created_at).toLocaleString() }}</div>
       </div>
 
@@ -1001,6 +1127,9 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
   margin-top: 0.25rem;
   display: block;
 }
+.visibility-private { color: #6b7280; }
+.visibility-shared  { color: #d97706; font-weight: 600; }
+.visibility-public  { color: #16a34a; font-weight: 600; }
 .status-active   { color: #16a34a; font-weight: 600; }
 .status-paused   { color: #d97706; font-weight: 600; }
 .status-ended    { color: #6b7280; }
