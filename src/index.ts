@@ -73,6 +73,7 @@ export type {
   MessageCreate,
   MessageResponse,
   MessageListResponse,
+  ReplyToMemberRequest,
   LiveKitTokenResponse,
   KnowledgeCreate,
   KnowledgeUpdate,

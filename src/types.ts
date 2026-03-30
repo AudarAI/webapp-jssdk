@@ -576,7 +576,15 @@ export interface MessageCreate {
   content: string;
   speaker_type?: string;
   speaker_ref_id?: string;
+  /** UUID of the participant this message is directed at (for reply-to / @mention tracking). */
+  reply_to_ref_id?: string;
   metadata?: Record<string, unknown>;
+}
+
+/** Request body for directing a specific agent to reply (moderator-led dispatch). */
+export interface ReplyToMemberRequest {
+  /** UUID of the agent to trigger. */
+  target_ref_id: string;
 }
 
 export interface MessageResponse {
@@ -813,4 +821,15 @@ export interface LiveKitTokenResponse {
   room_name: string;
   livekit_url: string;
   session_id: string;
+}
+
+/** Request body for moderator-led dispatch: human moderator explicitly triggers an agent. */
+export interface ModeratorDispatchRequest {
+  /** UUID of the agent to trigger. */
+  agent_id: string;
+}
+
+export interface ModeratorDispatchResponse {
+  agent_id: string;
+  agent_idx: number;
 }

@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { SessionResponse, SessionWithContextResponse, SessionListResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest } from "./types";
+import { SessionResponse, SessionWithContextResponse, SessionListResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest, ModeratorDispatchRequest, ModeratorDispatchResponse, ReplyToMemberRequest } from "./types";
 
 export class SessionApi {
   constructor(private readonly _http: HttpClient) {}
@@ -92,5 +92,37 @@ export class SessionApi {
       `/v1/agent/sessions/${encodeURIComponent(sessionId)}/join`,
       data ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) } : undefined,
     );
+  }
+
+  /**
+   * Moderator-led mode: human moderator explicitly triggers a specific agent to respond.
+   *
+   * Sends a dispatch command to the voice worker via LiveKit data channel.
+   * The agent will generate a reply based on the session's recent message history.
+   *
+   * Requires the session to be in `running` state and `talking_style` to be `"moderator-led"`.
+   *
+   * @param sessionId - The active session ID.
+   * @param data.agent_id - UUID of the agent to trigger.
+   */
+  async dispatch(sessionId: string, data: ModeratorDispatchRequest): Promise<ModeratorDispatchResponse> {
+    return this._http.request<ModeratorDispatchResponse>(
+      "POST",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/dispatch`,
+      { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) },
+    );
+  }
+
+  /**
+   * Direct a specific agent to reply (moderator-led dispatch).
+   *
+   * The agent replies based on the session's recent message history.
+   * Requires the session's `talking_style` to be `"moderator_led"`.
+   *
+   * @example
+   * await session.replyToMember(sessionId, { target_ref_id: agentId });
+   */
+  async replyToMember(sessionId: string, data: ReplyToMemberRequest): Promise<ModeratorDispatchResponse> {
+    return this.dispatch(sessionId, { agent_id: data.target_ref_id });
   }
 }

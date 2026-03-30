@@ -350,6 +350,9 @@ const appendContent = ref("");
 const appendSpeakerType = ref("");
 const appendSpeakerRefId = ref("");
 
+// ── 指定成员回复 ──────────────────────────────────────────────────────────────
+const replyTargetRefId = ref("");
+
 async function loadMessages() {
   if (!sessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
   log("加载消息...", "info");
@@ -375,6 +378,19 @@ async function appendMessage() {
     messages.value.push(msg);
     appendContent.value = "";
     log(`消息已追加: ${msg.id}`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
+
+async function replyToMember() {
+  if (!sessionId.value.trim())        { log("请输入 session_id", "warn"); return; }
+  if (!replyTargetRefId.value.trim()) { log("请选择目标 Agent", "warn");  return; }
+  try {
+    const res = await client.value!.agent.sessions.replyToMember(sessionId.value, {
+      target_ref_id: replyTargetRefId.value,
+    });
+    log(`已 dispatch 给 agent，agent_idx=${res.agent_idx}`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -989,6 +1005,24 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <span class="agent-id ref-id-muted" :title="p.ref_id">{{ p.ref_id.slice(0, 8) }}…</span>
         </div>
       </div>
+
+      <!-- 指定成员回复 -->
+      <div class="sub-section" v-if="participants.some(p => p.type === 'agent')">
+        <h4>指定成员回复</h4>
+        <div class="row">
+          <div class="field">
+            <label>目标 Agent</label>
+            <select v-model="replyTargetRefId">
+              <option value="">— 请选择 —</option>
+              <option v-for="p in participants.filter(p => p.type === 'agent')" :key="p.ref_id" :value="p.ref_id">
+                {{ participantDisplayName(p) }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <p class="hint">触发指定 Agent 基于会话历史回复。</p>
+        <button class="btn btn-primary" :disabled="!replyTargetRefId" @click="replyToMember">指定回复</button>
+      </div>
     </div>
 
     <!-- Card 6: 消息记录 -->
@@ -1041,6 +1075,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         </div>
         <button class="btn btn-primary" @click="appendMessage">追加消息</button>
       </div>
+
     </div>
 
     <!-- Card 7: 语音对话 -->
