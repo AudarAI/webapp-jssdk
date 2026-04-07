@@ -9,6 +9,7 @@ export { SkillApi } from "./skill";
 export { ArchetypeApi } from "./archetype";
 export { RoomApi } from "./room";
 export { SessionApi } from "./session";
+export { ChannelApi } from "./channel";
 export type { TranscribeResult } from "./stt";
 export type { TranslationResult } from "./translation";
 export type {
@@ -59,6 +60,7 @@ export type {
   AgentUpdate,
   AgentResponse,
   AgentChatResponse,
+  PhaseConfig,
   RoomCreate,
   RoomUpdate,
   RoomResponse,
@@ -97,6 +99,16 @@ export type {
   ArchetypeCreate,
   ArchetypeUpdate,
   ArchetypeResponse,
+  AgentBinding,
+  ChannelCreate,
+  ChannelUpdate,
+  ChannelResponse,
+  ParticipantContextUpsert,
+  ParticipantContextResponse,
+  ParticipantContextPrivateResponse,
+  SessionActionCreate,
+  SessionActionResponse,
+  ActionCountsResponse,
 } from "./types";
 export { AiVoxError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
 

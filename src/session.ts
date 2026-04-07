@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { SessionResponse, SessionWithContextResponse, SessionListResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest, ModeratorDispatchRequest, ModeratorDispatchResponse, ReplyToMemberRequest } from "./types";
+import { SessionResponse, SessionWithContextResponse, SessionListResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest, ModeratorDispatchRequest, ModeratorDispatchResponse, ReplyToMemberRequest, ParticipantContextUpsert, ParticipantContextResponse, ParticipantContextPrivateResponse, SessionActionCreate, SessionActionResponse, ActionCountsResponse } from "./types";
 
 export class SessionApi {
   constructor(private readonly _http: HttpClient) {}
@@ -32,6 +32,48 @@ export class SessionApi {
   /** List participants currently in the session. */
   async getParticipants(sessionId: string): Promise<Participant[]> {
     return this._http.request<Participant[]>("GET", `/v1/agent/sessions/${encodeURIComponent(sessionId)}/participants`);
+  }
+
+  // ── Participant Context ────────────────────────────────────────────────────
+
+  /**
+   * List participant contexts for a session.
+   * Pass `include_private: true` to include private_data, instruction_override, and config_override
+   * (requires tenant admin permissions).
+   */
+  async listParticipantContexts(
+    sessionId: string,
+    params?: { include_private?: boolean },
+  ): Promise<ParticipantContextResponse[] | ParticipantContextPrivateResponse[]> {
+    return this._http.request<ParticipantContextResponse[]>(
+      "GET",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/participants/context`,
+      { query: params as Record<string, boolean | undefined> },
+    );
+  }
+
+  /** Create or update the context for a specific participant (identified by ref_id). */
+  async upsertParticipantContext(
+    sessionId: string,
+    refId: string,
+    data: ParticipantContextUpsert,
+  ): Promise<ParticipantContextPrivateResponse> {
+    return this._http.request<ParticipantContextPrivateResponse>(
+      "PUT",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/participants/${encodeURIComponent(refId)}/context`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  /** Delete the context for a specific participant. */
+  async deleteParticipantContext(sessionId: string, refId: string): Promise<void> {
+    await this._http.request<unknown>(
+      "DELETE",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/participants/${encodeURIComponent(refId)}/context`,
+    );
   }
 
   // ── Messages ──────────────────────────────────────────────────────────────
@@ -124,5 +166,46 @@ export class SessionApi {
    */
   async replyToMember(sessionId: string, data: ReplyToMemberRequest): Promise<ModeratorDispatchResponse> {
     return this.dispatch(sessionId, { agent_id: data.target_ref_id });
+  }
+
+  // ── Session Actions ────────────────────────────────────────────────────────
+
+  /**
+   * Record a participant action (vote, answer, score, etc.) for this session.
+   * A UNIQUE constraint prevents duplicate actions per actor/type/round.
+   */
+  async createAction(sessionId: string, data: SessionActionCreate): Promise<SessionActionResponse> {
+    return this._http.request<SessionActionResponse>(
+      "POST",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/actions`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  /** List all actions for a session, optionally filtered by action_type and/or round. */
+  async listActions(
+    sessionId: string,
+    params?: { action_type?: string; round?: number },
+  ): Promise<SessionActionResponse[]> {
+    return this._http.request<SessionActionResponse[]>(
+      "GET",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/actions`,
+      { query: params as Record<string, string | number | undefined> },
+    );
+  }
+
+  /** Get aggregated action counts for a session, grouped by target participant. */
+  async getActionCounts(
+    sessionId: string,
+    params: { action_type: string; round: number },
+  ): Promise<ActionCountsResponse> {
+    return this._http.request<ActionCountsResponse>(
+      "GET",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/actions/counts`,
+      { query: params as Record<string, string | number> },
+    );
   }
 }

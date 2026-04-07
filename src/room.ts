@@ -39,8 +39,8 @@ export class RoomApi {
     return this._http.request<RoomAgentListResponse>("GET", `/v1/agent/rooms/${encodeURIComponent(roomId)}/agents`);
   }
 
-  async addAgent(roomId: string, agentId: string): Promise<RoomAgentListResponse> {
-    const body: RoomAddAgent = { agent_id: agentId };
+  async addAgent(roomId: string, agentId: string, count?: number): Promise<RoomAgentListResponse> {
+    const body: RoomAddAgent = { agent_id: agentId, ...(count !== undefined ? { count } : {}) };
     return this._http.request<RoomAgentListResponse>(
       "POST",
       `/v1/agent/rooms/${encodeURIComponent(roomId)}/agents`,

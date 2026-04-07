@@ -3,7 +3,7 @@ import { ref, computed, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, SessionWithContextResponse, SessionListResponse, MessageResponse, Participant, SkillResponse, ToolResponse } from "@aivox/sdk";
+import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, SessionWithContextResponse, SessionListResponse, MessageResponse, Participant, SkillResponse, ToolResponse, AgentBinding } from "@aivox/sdk";
 import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant as LkParticipantBase } from "livekit-client";
 
 const { client } = useClient();
@@ -40,8 +40,7 @@ async function loadTools() {
 
 async function loadVoiceList() {
   try {
-    const res = await client.value!.tts.listSpeakers();
-    voiceList.value = res.speakers.map(s => s.name);
+    voiceList.value = await client.value!.tts.listSpeakers();
   } catch {
     // ignore — voice list is optional
   }
@@ -63,13 +62,30 @@ async function listRooms() {
 // ── Create Room ───────────────────────────────────────────────────────────────
 const newRoom = ref({
   name: "", description: "", room_type: "", room_prompt: "",
-  agent_ids: [] as string[],
+  pre_session_instructions: "",
+  language: "",
+  agent_ids: [] as AgentBinding[],
   visibility: "private" as "private" | "shared" | "public",
   talking_style: "sequential" as "sequential" | "moderator_led" | "freeform",
   speaking_rules: "",
+  auto_start: false,
   skill_ids: [] as string[],
   tool_ids: [] as string[],
 });
+const newRoomAddAgentId    = ref("");
+const newRoomAddAgentCount = ref<number | "">(1);
+
+function addAgentToNewRoom() {
+  if (!newRoomAddAgentId.value) return;
+  if (newRoom.value.agent_ids.some(b => b.agent_id === newRoomAddAgentId.value)) return;
+  newRoom.value.agent_ids.push({ agent_id: newRoomAddAgentId.value, count: newRoomAddAgentCount.value !== "" ? newRoomAddAgentCount.value as number : undefined });
+  newRoomAddAgentId.value = "";
+  newRoomAddAgentCount.value = 1;
+}
+
+function removeAgentFromNewRoom(agentId: string) {
+  newRoom.value.agent_ids = newRoom.value.agent_ids.filter(b => b.agent_id !== agentId);
+}
 
 async function createRoom() {
   if (!newRoom.value.name.trim()) { log("请填写 Room 名称", "warn"); return; }
@@ -84,12 +100,16 @@ async function createRoom() {
       visibility: newRoom.value.visibility,
       talking_style: newRoom.value.talking_style,
       speaking_rules: newRoom.value.speaking_rules || undefined,
+      language: newRoom.value.language || undefined,
+      auto_start: newRoom.value.auto_start,
       skill_ids: newRoom.value.skill_ids.length ? newRoom.value.skill_ids : undefined,
       tool_ids: newRoom.value.tool_ids.length ? newRoom.value.tool_ids : undefined,
+      pre_session_instructions: newRoom.value.pre_session_instructions || undefined,
     });
     rooms.value.push(created);
     log(`Room 创建成功: ${created.id}`, "ok");
-    newRoom.value = { name: "", description: "", room_type: "", room_prompt: "", agent_ids: [], visibility: "private", talking_style: "sequential", speaking_rules: "", skill_ids: [], tool_ids: [] };
+    newRoom.value = { name: "", description: "", room_type: "", room_prompt: "", pre_session_instructions: "", language: "", agent_ids: [], visibility: "private", talking_style: "sequential", speaking_rules: "", auto_start: false, skill_ids: [], tool_ids: [] };
+    newRoomAddAgentId.value = ""; newRoomAddAgentCount.value = 1;
   } catch (err) {
     logError(err);
   }
@@ -98,13 +118,28 @@ async function createRoom() {
 // ── Edit Room ─────────────────────────────────────────────────────────────────
 const editingRoomId = ref<string | null>(null);
 const editRoomForm = ref({
-  name: "", description: "", room_prompt: "", agent_ids: [] as string[],
+  name: "", description: "", room_prompt: "", pre_session_instructions: "", language: "", agent_ids: [] as AgentBinding[],
   visibility: "private" as "private" | "shared" | "public",
   talking_style: "sequential" as "sequential" | "moderator_led" | "freeform",
   speaking_rules: "",
+  auto_start: false,
   skill_ids: [] as string[],
   tool_ids: [] as string[],
 });
+const editRoomAddAgentId    = ref("");
+const editRoomAddAgentCount = ref<number | "">(1);
+
+function addAgentToEditRoom() {
+  if (!editRoomAddAgentId.value) return;
+  if (editRoomForm.value.agent_ids.some(b => b.agent_id === editRoomAddAgentId.value)) return;
+  editRoomForm.value.agent_ids.push({ agent_id: editRoomAddAgentId.value, count: editRoomAddAgentCount.value !== "" ? editRoomAddAgentCount.value as number : undefined });
+  editRoomAddAgentId.value = "";
+  editRoomAddAgentCount.value = 1;
+}
+
+function removeAgentFromEditRoom(agentId: string) {
+  editRoomForm.value.agent_ids = editRoomForm.value.agent_ids.filter(b => b.agent_id !== agentId);
+}
 
 function startEditRoom(r: RoomResponse) {
   editingRoomId.value = r.id;
@@ -112,10 +147,13 @@ function startEditRoom(r: RoomResponse) {
     name: r.name,
     description: r.description,
     room_prompt: r.room_prompt,
+    pre_session_instructions: r.pre_session_instructions ?? "",
     agent_ids: [...r.agent_ids],
     visibility: (r.visibility || "private") as "private" | "shared" | "public",
     talking_style: (r.talking_style || "sequential") as "sequential" | "moderator_led" | "freeform",
     speaking_rules: r.speaking_rules || "",
+    language: r.language ?? "",
+    auto_start: r.auto_start ?? false,
     skill_ids: [...(r.skill_ids || [])],
     tool_ids: [...(r.tool_ids || [])],
   };
@@ -135,8 +173,11 @@ async function saveEditRoom() {
       visibility: editRoomForm.value.visibility,
       talking_style: editRoomForm.value.talking_style,
       speaking_rules: editRoomForm.value.speaking_rules || undefined,
+      language: editRoomForm.value.language || undefined,
+      auto_start: editRoomForm.value.auto_start,
       skill_ids: editRoomForm.value.skill_ids,
       tool_ids: editRoomForm.value.tool_ids,
+      pre_session_instructions: editRoomForm.value.pre_session_instructions || undefined,
     });
     const idx = rooms.value.findIndex(r => r.id === updated.id);
     if (idx >= 0) rooms.value[idx] = updated;
@@ -178,7 +219,8 @@ async function getRoom() {
 // ── Room Agents ───────────────────────────────────────────────────────────────
 const agentMgmtRoomId = ref("");
 const roomAgents = ref<RoomAgentListResponse | null>(null);
-const addAgentId = ref("");
+const addAgentId    = ref("");
+const addAgentCount = ref<number | "">(1);
 
 async function listRoomAgents() {
   if (!agentMgmtRoomId.value.trim()) { log("请选择 Room", "warn"); return; }
@@ -196,8 +238,9 @@ async function addRoomAgent() {
   if (!addAgentId.value.trim()) { log("请输入 Agent ID", "warn"); return; }
   log(`添加 Agent ${addAgentId.value} 到 Room...`, "info");
   try {
-    roomAgents.value = await client.value!.agent.rooms.addAgent(agentMgmtRoomId.value, addAgentId.value);
+    roomAgents.value = await client.value!.agent.rooms.addAgent(agentMgmtRoomId.value, addAgentId.value, addAgentCount.value !== "" ? addAgentCount.value as number : undefined);
     addAgentId.value = "";
+    addAgentCount.value = 1;
     log("添加成功", "ok");
   } catch (err) {
     logError(err);
@@ -417,6 +460,11 @@ interface SubtitleLine { id: string; text: string; role: "user" | "agent"; speak
 const subtitleLines = ref<SubtitleLine[]>([]);
 const MAX_FINAL_SUBTITLES = 10;
 
+interface DataMessage { id: number; from: string; topic: string; payload: string }
+const dataMessages = ref<DataMessage[]>([]);
+let _dataMsgSeq = 0;
+const MAX_DATA_MESSAGES = 50;
+
 let _lkRoom: Room | null = null;
 
 function teardownVoice() {
@@ -431,6 +479,7 @@ function teardownVoice() {
   speakingIdentities.value = [];
   localIdentity.value = "";
   lkParticipants.value = [];
+  dataMessages.value = [];
   voiceState.value = "idle";
 }
 
@@ -524,8 +573,22 @@ async function _connectWithToken(tokenRes: { token: string; livekit_url: string 
     const lives  = subtitleLines.value.filter(l => !l.final);
     subtitleLines.value = [...finals, ...lives];
   });
+  room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: LkParticipantBase, _kind?: unknown, topic?: string) => {
+    let text: string;
+    try {
+      const raw = new TextDecoder().decode(payload);
+      try { text = JSON.stringify(JSON.parse(raw), null, 0); } catch { text = raw; }
+    } catch {
+      text = `<binary ${payload.byteLength}B>`;
+    }
+    const from = participant?.identity ?? "(local)";
+    dataMessages.value.push({ id: _dataMsgSeq++, from, topic: topic ?? "", payload: text });
+    if (dataMessages.value.length > MAX_DATA_MESSAGES) dataMessages.value.shift();
+    log(`DataReceived from="${from}" topic="${topic ?? ""}" payload=${text}`, "info");
+  });
 
   subtitleLines.value = [];
+  dataMessages.value = [];
   await room.connect(tokenRes.livekit_url, tokenRes.token);
   await room.localParticipant.setMicrophoneEnabled(true);
   micEnabled.value = true;
@@ -636,6 +699,10 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <label>room_prompt</label>
           <textarea v-model="editRoomForm.room_prompt" rows="2" />
         </div>
+        <div class="field">
+          <label>pre_session_instructions</label>
+          <textarea v-model="editRoomForm.pre_session_instructions" rows="2" placeholder="每次 Session 启动前执行的指令（可选）" />
+        </div>
         <div class="row">
           <div class="field">
             <label>visibility</label>
@@ -653,17 +720,47 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
               <option value="freeform">freeform</option>
             </select>
           </div>
+          <div class="field" style="align-self:flex-end">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+              <input v-model="editRoomForm.auto_start" type="checkbox" />
+              auto_start
+            </label>
+          </div>
         </div>
-        <div class="field" v-if="editRoomForm.talking_style === 'freeform'">
+        <div class="row">
+          <div class="field">
+            <label>language</label>
+            <input v-model="editRoomForm.language" type="text" placeholder="zh / en（可选）" />
+          </div>
+        </div>
+        <div class="field">
           <label>speaking_rules</label>
-          <textarea v-model="editRoomForm.speaking_rules" rows="2" placeholder="Freeform 模式的对话规则提示词" />
+          <textarea v-model="editRoomForm.speaking_rules" rows="2" placeholder="自然语言规则，LLM 会自动解析为结构化 phases（可选）" />
         </div>
         <div class="field">
           <label>agent_ids</label>
-          <select v-model="editRoomForm.agent_ids" multiple class="multi-select">
-            <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
-          </select>
-          <span class="hint-text">按住 Ctrl / Cmd 多选</span>
+          <div class="binding-list">
+            <div v-for="b in editRoomForm.agent_ids" :key="b.agent_id" class="binding-row">
+              <span class="binding-name">{{ agentsList.find(a => a.id === b.agent_id)?.name ?? b.agent_id.slice(0, 8) + '…' }}</span>
+              <span class="count-badge">×{{ b.count ?? 1 }}</span>
+              <button class="btn btn-sm btn-danger" @click="removeAgentFromEditRoom(b.agent_id)">移除</button>
+            </div>
+            <div v-if="!editRoomForm.agent_ids.length" class="empty-tip">尚未添加 Agent</div>
+          </div>
+          <div class="row" style="margin-top:0.5rem">
+            <div class="field" style="flex:3">
+              <select v-model="editRoomAddAgentId">
+                <option value="">— 选择 Agent —</option>
+                <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1">
+              <input v-model.number="editRoomAddAgentCount" type="number" min="1" placeholder="数量" />
+            </div>
+            <div class="field" style="align-self:flex-end">
+              <button class="btn btn-outline" @click="addAgentToEditRoom">添加</button>
+            </div>
+          </div>
         </div>
         <div class="field">
           <label>skill_ids</label>
@@ -706,6 +803,10 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <label>room_prompt</label>
           <textarea v-model="newRoom.room_prompt" rows="2" placeholder="注入到此 Room 所有 Session 的系统提示（可选）" />
         </div>
+        <div class="field">
+          <label>pre_session_instructions</label>
+          <textarea v-model="newRoom.pre_session_instructions" rows="2" placeholder="每次 Session 启动前执行的指令（可选）" />
+        </div>
         <div class="row">
           <div class="field">
             <label>visibility</label>
@@ -723,17 +824,47 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
               <option value="freeform">freeform</option>
             </select>
           </div>
+          <div class="field" style="align-self:flex-end">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+              <input v-model="newRoom.auto_start" type="checkbox" />
+              auto_start
+            </label>
+          </div>
         </div>
-        <div class="field" v-if="newRoom.talking_style === 'freeform'">
+        <div class="row">
+          <div class="field">
+            <label>language</label>
+            <input v-model="newRoom.language" type="text" placeholder="zh / en（可选）" />
+          </div>
+        </div>
+        <div class="field">
           <label>speaking_rules</label>
-          <textarea v-model="newRoom.speaking_rules" rows="2" placeholder="Freeform 模式的对话规则提示词" />
+          <textarea v-model="newRoom.speaking_rules" rows="2" placeholder="自然语言规则，LLM 会自动解析为结构化 phases（可选）" />
         </div>
         <div class="field">
           <label>agent_ids</label>
-          <select v-model="newRoom.agent_ids" multiple class="multi-select">
-            <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
-          </select>
-          <span class="hint-text">按住 Ctrl / Cmd 多选</span>
+          <div class="binding-list">
+            <div v-for="b in newRoom.agent_ids" :key="b.agent_id" class="binding-row">
+              <span class="binding-name">{{ agentsList.find(a => a.id === b.agent_id)?.name ?? b.agent_id.slice(0, 8) + '…' }}</span>
+              <span class="count-badge">×{{ b.count ?? 1 }}</span>
+              <button class="btn btn-sm btn-danger" @click="removeAgentFromNewRoom(b.agent_id)">移除</button>
+            </div>
+            <div v-if="!newRoom.agent_ids.length" class="empty-tip">尚未添加 Agent</div>
+          </div>
+          <div class="row" style="margin-top:0.5rem">
+            <div class="field" style="flex:3">
+              <select v-model="newRoomAddAgentId">
+                <option value="">— 选择 Agent —</option>
+                <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1">
+              <input v-model.number="newRoomAddAgentCount" type="number" min="1" placeholder="数量" />
+            </div>
+            <div class="field" style="align-self:flex-end">
+              <button class="btn btn-outline" @click="addAgentToNewRoom">添加</button>
+            </div>
+          </div>
         </div>
         <div class="field">
           <label>skill_ids</label>
@@ -787,6 +918,10 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
               <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
           </div>
+          <div class="field" style="flex:1">
+            <label>数量</label>
+            <input v-model.number="addAgentCount" type="number" min="1" placeholder="1" />
+          </div>
           <div class="field" style="align-self:flex-end">
             <button class="btn btn-primary" @click="addRoomAgent">添加</button>
           </div>
@@ -817,10 +952,25 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         <div><strong>visibility:</strong> {{ roomDetail.visibility }}</div>
         <div><strong>talking_style:</strong> {{ roomDetail.talking_style }}</div>
         <div v-if="roomDetail.speaking_rules"><strong>speaking_rules:</strong> {{ roomDetail.speaking_rules }}</div>
+        <div><strong>auto_start:</strong> {{ roomDetail.auto_start ? "✓ 是" : "✗ 否" }}</div>
+        <div><strong>language:</strong> {{ roomDetail.language || "—" }}</div>
         <div><strong>room_prompt:</strong> {{ roomDetail.room_prompt || "—" }}</div>
-        <div><strong>agent_ids:</strong> {{ roomDetail.agent_ids.length ? roomDetail.agent_ids.join(", ") : "—" }}</div>
+        <div v-if="roomDetail.pre_session_instructions"><strong>pre_session_instructions:</strong> {{ roomDetail.pre_session_instructions }}</div>
+        <div><strong>agent_ids:</strong> {{ roomDetail.agent_ids.length ? roomDetail.agent_ids.map(b => `${b.agent_id.slice(0,8)}…×${b.count ?? 1}`).join(", ") : "—" }}</div>
         <div><strong>skill_ids:</strong> {{ roomDetail.skill_ids?.length ? roomDetail.skill_ids.join(", ") : "—" }}</div>
         <div><strong>tool_ids:</strong> {{ roomDetail.tool_ids?.length ? roomDetail.tool_ids.join(", ") : "—" }}</div>
+        <div v-if="roomDetail.phases?.length">
+          <strong>phases ({{ roomDetail.phases.length }}):</strong>
+          <div class="phases-list">
+            <div v-for="(ph, i) in roomDetail.phases" :key="i" class="phase-row">
+              <span class="phase-name">{{ ph.name }}</span>
+              <span class="phase-badge">{{ ph.executor }}</span>
+              <span class="phase-badge">{{ ph.order }}</span>
+              <span class="phase-badge">{{ ph.advance_on }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="roomDetail.phases?.length"><strong>phase_loop:</strong> {{ roomDetail.phase_loop ? "✓ 是" : "✗ 否" }}</div>
         <div><strong>created_at:</strong> {{ new Date(roomDetail.created_at).toLocaleString() }}</div>
       </div>
 
@@ -1136,6 +1286,18 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         </div>
       </div>
 
+      <div v-if="dataMessages.length" class="data-msg-box">
+        <div class="data-msg-header">
+          <span>Data Channel</span>
+          <button class="btn btn-sm btn-outline" @click="dataMessages = []">清空</button>
+        </div>
+        <div v-for="m in dataMessages" :key="m.id" class="data-msg-row">
+          <span class="data-msg-from">{{ m.from }}</span>
+          <span v-if="m.topic" class="data-msg-topic">{{ m.topic }}</span>
+          <span class="data-msg-payload">{{ m.payload }}</span>
+        </div>
+      </div>
+
       <div class="btn-row">
         <template v-if="voiceState === 'idle'">
           <button class="btn btn-primary" @click="startVoice">📞 开始语音对话</button>
@@ -1154,6 +1316,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
       <!-- v2: audio elements are created dynamically per-participant in _audioElements Map -->
     </div>
+
   </div>
 </template>
 
@@ -1246,6 +1409,35 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 }
 .btn-danger:hover:not(:disabled) {
   background: #dc2626;
+}
+.binding-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--bg-alt, #f8fafc);
+}
+.binding-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid var(--border, #e2e8f0);
+  font-size: 0.85rem;
+}
+.binding-name { flex: 1; }
+.count-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5b21b6;
+  background: #ede9fe;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
 }
 .multi-select {
   width: 100%;
@@ -1395,6 +1587,54 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
   font-weight: 600;
   animation: pulse 0.8s infinite;
 }
+.data-msg-box {
+  margin: 0.75rem 0;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 0.82rem;
+}
+.data-msg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.6rem;
+  background: var(--bg-alt, #f8fafc);
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.data-msg-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.25rem 0.6rem;
+  border-bottom: 1px solid var(--border, #f1f5f9);
+  font-family: monospace;
+}
+.data-msg-row:last-child { border-bottom: none; }
+.data-msg-from {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5b21b6;
+  min-width: 5rem;
+  flex-shrink: 0;
+}
+.data-msg-topic {
+  font-size: 0.72rem;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.data-msg-payload {
+  flex: 1;
+  color: #374151;
+  word-break: break-all;
+  font-size: 0.8rem;
+}
 .subtitle-box {
   min-height: 4rem;
   max-height: 14rem;
@@ -1491,5 +1731,29 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
   border-radius: 4px;
   border: 1px solid var(--border, #e2e8f0);
   color: #374151;
+}
+/* Phases */
+.phases-list {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.phase-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+.phase-name {
+  font-weight: 600;
+  min-width: 5rem;
+}
+.phase-badge {
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  background: #ede9fe;
+  color: #5b21b6;
 }
 </style>

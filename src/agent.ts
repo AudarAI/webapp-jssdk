@@ -6,6 +6,7 @@ import { SkillApi } from "./skill";
 import { ArchetypeApi } from "./archetype";
 import { RoomApi } from "./room";
 import { SessionApi } from "./session";
+import { ChannelApi } from "./channel";
 
 export class AgentApi {
   readonly knowledge: KnowledgeApi;
@@ -14,6 +15,7 @@ export class AgentApi {
   readonly archetypes: ArchetypeApi;
   readonly rooms: RoomApi;
   readonly sessions: SessionApi;
+  readonly channels: ChannelApi;
 
   constructor(private readonly _http: HttpClient) {
     this.knowledge = new KnowledgeApi(_http);
@@ -22,6 +24,7 @@ export class AgentApi {
     this.archetypes = new ArchetypeApi(_http);
     this.rooms = new RoomApi(_http);
     this.sessions = new SessionApi(_http);
+    this.channels = new ChannelApi(_http);
   }
 
   // ── Agent Management ──────────────────────────────────────────────────────

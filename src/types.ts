@@ -71,6 +71,18 @@ export interface SynthesizeOptions {
   speed?: number;
   /** TTS provider: flash | turbo | pro */
   provider?: string;
+  /** Sampling temperature. Range: 0.0–2.0 */
+  temperature?: number;
+  /** Nucleus sampling probability. Range: 0.0–1.0 */
+  top_p?: number;
+  /** Top-K sampling. Range: 1–500 */
+  top_k?: number;
+  /** Random seed for reproducibility. */
+  seed?: number;
+  /** Minimum tokens to generate. Range: 1–1000 */
+  min_tokens?: number;
+  /** Maximum tokens to generate. Range: 100–8192 */
+  max_tokens?: number;
 }
 
 export interface TranscribeOptions {
@@ -435,6 +447,37 @@ export interface AgentChatResponse {
 
 // ── Room types ────────────────────────────────────────────────────────────────
 
+export interface AgentBinding {
+  agent_id: string;
+  count?: number;
+}
+
+/** A single phase in a structured conversation flow, generated from speaking_rules. */
+export interface PhaseConfig {
+  /** Short identifier for this phase. */
+  name: string;
+  /**
+   * Who participates in this phase:
+   * - "agent"      — only AI agents speak
+   * - "user"       — only human users speak
+   * - "agent+user" — both AI agents and human users take turns
+   * - "router"     — orchestrator calls tools directly (no speech)
+   */
+  executor: "agent" | "user" | "agent+user" | "router";
+  /** Turn order within this phase. */
+  order: "sequential" | "any" | "fixed";
+  /**
+   * When the phase advances:
+   * - "all_acted" — automatically when all required participants have spoken
+   * - "external"  — only when deactivate_participant fires (open-ended hold)
+   */
+  advance_on: "all_acted" | "external";
+  /** System prompt used by agents/router in this phase. */
+  prompt: string;
+  /** Agents tracked for the all_acted check. "active_agents" or "agent:{N}". */
+  participants?: string;
+}
+
 export interface RoomCreate {
   /** Room display name. */
   name: string;
@@ -447,33 +490,45 @@ export interface RoomCreate {
   shared_knowledge?: unknown[];
   policies?: Record<string, unknown>;
   config?: Record<string, unknown>;
-  /** Agent UUIDs allowed in this room. */
-  agent_ids?: string[];
+  /** Agent bindings for this room (agent_id + optional instance count). */
+  agent_ids?: AgentBinding[];
   /** Access control: "private" (default) | "shared" | "public" */
   visibility?: "private" | "shared" | "public";
   /** Conversation flow mode: "sequential" (default) | "moderator_led" | "freeform" */
   talking_style?: "sequential" | "moderator_led" | "freeform";
-  /** Prompt rules used when talking_style is "freeform". */
+  /** Natural-language rules parsed by LLM into structured phases at room creation time. */
   speaking_rules?: string;
+  /** Whether to automatically start the session when all agents are ready. */
+  auto_start?: boolean;
+  /** Default language for all agents in this room (e.g. "zh", "en"). */
+  language?: string;
   /** Skill UUIDs bound to this room. */
   skill_ids?: string[];
   /** Tool UUIDs bound to this room. */
   tool_ids?: string[];
+  /** Instructions to run before each session starts. */
+  pre_session_instructions?: string;
 }
 
 export interface RoomUpdate {
   name?: string;
   description?: string;
+  room_type?: string;
   room_prompt?: string;
   shared_knowledge?: unknown[];
   policies?: Record<string, unknown>;
   config?: Record<string, unknown>;
-  agent_ids?: string[];
+  agent_ids?: AgentBinding[];
   visibility?: "private" | "shared" | "public";
   talking_style?: "sequential" | "moderator_led" | "freeform";
+  /** Updating speaking_rules automatically regenerates phases via LLM. */
   speaking_rules?: string;
+  auto_start?: boolean;
+  /** Default language for all agents in this room (e.g. "zh", "en"). */
+  language?: string;
   skill_ids?: string[];
   tool_ids?: string[];
+  pre_session_instructions?: string;
 }
 
 export interface RoomResponse {
@@ -486,12 +541,23 @@ export interface RoomResponse {
   shared_knowledge: unknown[];
   policies: Record<string, unknown>;
   config: Record<string, unknown>;
-  agent_ids: string[];
+  agent_ids: AgentBinding[];
   visibility: string;
   talking_style: string;
   speaking_rules: string;
+  /**
+   * Structured phase definitions generated from speaking_rules at room creation/update time.
+   * Empty array if speaking_rules is not set or phase parsing produced no phases.
+   */
+  phases: PhaseConfig[];
+  /** Whether phases loop back to the first phase after the last phase completes. */
+  phase_loop: boolean;
+  auto_start: boolean;
+  /** Default language for all agents in this room. */
+  language: string | null;
   skill_ids: string[];
   tool_ids: string[];
+  pre_session_instructions: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -499,6 +565,7 @@ export interface RoomResponse {
 
 export interface RoomAddAgent {
   agent_id: string;
+  count?: number;
 }
 
 export interface RoomAgentListResponse {
@@ -594,6 +661,7 @@ export interface MessageResponse {
   role: string;
   speaker_type: string;
   speaker_ref_id: string | null;
+  speaker_name: string | null;
   content: string;
   metadata: Record<string, unknown>;
   created_at: string;
@@ -832,4 +900,109 @@ export interface ModeratorDispatchRequest {
 export interface ModeratorDispatchResponse {
   agent_id: string;
   agent_idx: number;
+}
+
+// ── Channel types ─────────────────────────────────────────────────────────────
+
+export interface ChannelCreate {
+  name: string;
+  /** Channel type. Default: "api" */
+  channel_type?: string;
+  target_type: string;
+  target_id: string;
+  web_url?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface ChannelUpdate {
+  name?: string;
+  channel_type?: string;
+  target_type?: string;
+  target_id?: string;
+  web_url?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface ChannelResponse {
+  id: string;
+  tenant_id: string;
+  name: string;
+  channel_type: string;
+  target_type: string;
+  target_id: string;
+  web_url: string | null;
+  config: Record<string, unknown>;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Participant Context types ─────────────────────────────────────────────────
+
+export interface ParticipantContextUpsert {
+  /** "user" | "agent" */
+  ref_type: string;
+  role?: string;
+  display_name?: string;
+  turn_order?: number;
+  private_data?: Record<string, unknown>;
+  /** Agent-only: override this agent's system prompt for the session. */
+  instruction_override?: string;
+  /** Agent-only: override agent config fields for the session. */
+  config_override?: Record<string, unknown>;
+  /** Template variables for {{key}} substitution in prompts. */
+  variables?: Record<string, unknown>;
+}
+
+export interface ParticipantContextResponse {
+  id: string;
+  session_id: string;
+  ref_id: string;
+  ref_type: string;
+  role: string | null;
+  display_name: string | null;
+  turn_order: number | null;
+  is_active: boolean;
+  deactivated_at: string | null;
+  variables: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParticipantContextPrivateResponse extends ParticipantContextResponse {
+  private_data: Record<string, unknown>;
+  instruction_override: string | null;
+  config_override: Record<string, unknown> | null;
+}
+
+// ── Session Action types ──────────────────────────────────────────────────────
+
+export interface SessionActionCreate {
+  /** "user" | "agent" */
+  actor_ref_type: string;
+  /** e.g. "vote" | "answer" | "score" */
+  action_type: string;
+  round?: number;
+  target_ref_id?: string;
+  value?: Record<string, unknown>;
+}
+
+export interface SessionActionResponse {
+  id: string;
+  session_id: string;
+  actor_ref_id: string;
+  actor_ref_type: string;
+  action_type: string;
+  round: number | null;
+  target_ref_id: string | null;
+  value: Record<string, unknown>;
+  created_at: string;
+}
+
+/** Aggregated action counts grouped by target participant. */
+export interface ActionCountsResponse {
+  action_type: string;
+  round: number | null;
+  /** Map of target_ref_id → count */
+  counts: Record<string, number>;
 }

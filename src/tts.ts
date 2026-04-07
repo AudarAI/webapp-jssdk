@@ -6,13 +6,20 @@ export class TtsApi {
 
   /** Synthesize speech and return an ArrayBuffer of audio data. */
   async synthesize(text: string, options: SynthesizeOptions = {}): Promise<ArrayBuffer> {
-    const { provider, voice, model, response_format, speed } = options;
+    const { provider, voice, model, response_format, speed,
+            temperature, top_p, top_k, seed, min_tokens, max_tokens } = options;
     const body = {
       text,
       voice:           voice           || "default",
       model:           model           || "tts-1",
       response_format: response_format || "mp3",
       speed:           speed           ?? 1.0,
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(top_p       !== undefined ? { top_p }       : {}),
+      ...(top_k       !== undefined ? { top_k }       : {}),
+      ...(seed        !== undefined ? { seed }        : {}),
+      ...(min_tokens  !== undefined ? { min_tokens }  : {}),
+      ...(max_tokens  !== undefined ? { max_tokens }  : {}),
     };
     const res = await this._http.request<Response>("POST", "/v1/speech/audio/speech", {
       headers: { "Content-Type": "application/json" },
@@ -28,13 +35,20 @@ export class TtsApi {
    * Caller can pipe res.body to a Web Audio API or write to a file.
    */
   async synthesizeStream(text: string, options: SynthesizeOptions = {}): Promise<Response> {
-    const { provider, voice, model, response_format, speed } = options;
+    const { provider, voice, model, response_format, speed,
+            temperature, top_p, top_k, seed, min_tokens, max_tokens } = options;
     const body = {
       text,
       voice:           voice           || "default",
       model:           model           || "tts-1",
       response_format: response_format || "mp3",
       speed:           speed           ?? 1.0,
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(top_p       !== undefined ? { top_p }       : {}),
+      ...(top_k       !== undefined ? { top_k }       : {}),
+      ...(seed        !== undefined ? { seed }        : {}),
+      ...(min_tokens  !== undefined ? { min_tokens }  : {}),
+      ...(max_tokens  !== undefined ? { max_tokens }  : {}),
     };
     return this._http.request<Response>("POST", "/v1/speech/audio/speech/stream", {
       headers: { "Content-Type": "application/json" },
