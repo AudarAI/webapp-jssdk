@@ -1,10 +1,63 @@
 # @aivox/sdk
 
-AiVox JavaScript / TypeScript SDK，支持 TTS、STT、实时语音转写和语音翻译。
+<div align="center">
 
-## 安装
+**The official JavaScript / TypeScript SDK for the AudarAI platform**
 
-### 从 GitHub 安装（推荐）
+*Build voice-enabled applications with Text-to-Speech, Speech-to-Text, real-time translation, and AI agent orchestration — all in one SDK.*
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?logo=node.js)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](./LICENSE)
+
+[English](./README.md) · [简体中文](./README.zh-CN.md) · [العربية](./README.ar.md)
+
+</div>
+
+---
+
+## Overview
+
+`@aivox/sdk` is the official client library for the **AudarAI** platform — a production-grade audio AI infrastructure supporting:
+
+- **Text-to-Speech (TTS)** — high-quality voice synthesis with custom speaker cloning
+- **Speech-to-Text (STT)** — accurate transcription via file upload, SSE streaming, or real-time WebSocket
+- **Audio Translation** — end-to-end STT → Translation → TTS pipeline with live streaming
+- **AI Agent Orchestration** — create, manage, and converse with voice-enabled AI agents
+- **Knowledge Bases** — semantic vector search for grounding your agents in domain knowledge
+- **Tools & Skills** — extend agent capabilities with HTTP tools, builtins, MCP, and prompt skills
+- **Rooms & Sessions** — multi-agent voice rooms with LiveKit integration
+
+Designed for both **browser** and **Node.js (18+)** environments with first-class TypeScript support.
+
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Authentication](#authentication)
+- [Text-to-Speech (TTS)](#text-to-speech-tts)
+- [Speech-to-Text (STT)](#speech-to-text-stt)
+- [Audio Translation](#audio-translation)
+- [Agent Management](#agent-management)
+- [Knowledge Base](#knowledge-base)
+- [Tools](#tools)
+- [Skills](#skills)
+- [Archetypes](#archetypes)
+- [Rooms](#rooms)
+- [Sessions](#sessions)
+- [Error Handling](#error-handling)
+- [Token Auto-Refresh](#token-auto-refresh)
+- [Node.js Compatibility](#nodejs-compatibility)
+- [TypeScript Support](#typescript-support)
+- [Demo Application](#demo-application)
+
+---
+
+## Installation
+
+### From GitHub (Recommended)
 
 ```bash
 # npm
@@ -17,7 +70,7 @@ pnpm add @aivox/sdk@github:AudarAI/webapp-jssdk
 yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
 ```
 
-或在 `package.json` 中：
+Or pin it in `package.json`:
 
 ```json
 {
@@ -27,78 +80,90 @@ yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
 }
 ```
 
-### 从本地路径安装
+### From Local Path
 
 ```bash
-npm install /path/to/AiVox2/sdk/javascript
-```
-
-或在 `package.json` 中：
-
-```json
-{
-  "dependencies": {
-    "@aivox/sdk": "file:../../sdk/javascript"
-  }
-}
+npm install /path/to/webapp-jssdk
 ```
 
 ---
 
-## 认证模式
-
-SDK 支持三种认证方式，必须且只能选择其中一种。
-
-| 模式 | 配置字段 | HTTP 请求 | WebSocket |
-|---|---|---|---|
-| Publishable Key | `publishableKey` | session token（自动换取） | session token |
-| Access Token | `accessToken` | JWT 直接用 | session token（自动换取） |
-| API Key | `apiKey` | API Key 直接用 | session token（自动换取） |
-
-WebSocket 端点只接受短时 session token（`stk_` 前缀），SDK 会在建立连接前自动完成换取，无需手动处理。
-
-### 模式一：publishableKey（前端直连，无需后端）
-
-`pk_` 密钥可安全嵌入前端代码，所有请求（HTTP 和 WebSocket）均自动使用短时 session token。服务端会校验请求 `Origin` 是否在白名单内。
+## Quick Start
 
 ```typescript
 import { createAiVoxClient } from '@aivox/sdk';
 
+// 1. Create a client
+const client = createAiVoxClient({
+  baseUrl: 'https://api.aivox.com',
+  publishableKey: 'pk_your_key_here',
+});
+
+// 2. Synthesize speech
+const audioBuffer = await client.tts.synthesize('Hello, world!', {
+  voice: 'en-US-female',
+  model: 'tts-1-hd',
+  response_format: 'mp3',
+});
+
+// 3. Play in the browser
+const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+const url = URL.createObjectURL(blob);
+new Audio(url).play();
+```
+
+---
+
+## Authentication
+
+The SDK supports three mutually exclusive authentication modes. Choose exactly one.
+
+| Mode | Field | HTTP Requests | WebSocket |
+|---|---|---|---|
+| Publishable Key | `publishableKey` | Auto-exchanged session token | Session token |
+| Access Token | `accessToken` | JWT passed directly | Auto-exchanged session token |
+| API Key | `apiKey` | API key passed directly | Auto-exchanged session token |
+
+> WebSocket endpoints only accept short-lived session tokens (`stk_` prefix). The SDK handles the exchange automatically before establishing any connection — no manual handling required.
+
+### Mode 1: Publishable Key (Frontend — safe to embed)
+
+`pk_` keys are safe to include in client-side code. The server validates the request `Origin` against your configured allowlist.
+
+```typescript
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
   publishableKey: 'pk_xxx',
 });
 ```
 
-> 需先在控制台创建 publishable key 并配置允许的来源：
+> Before using this mode, create a publishable key in the dashboard and configure allowed origins:
 > ```http
 > POST /v1/account/api-keys
-> { "name": "Web App", "key_type": "publishable", "allowed_origins": ["https://myapp.com"] }
+> { "name": "Web App", "key_type": "publishable", "allowed_origins": ["https://yourapp.com"] }
 > ```
 
-### 模式二：accessToken（SSO / OAuth2）
+### Mode 2: Access Token (SSO / OAuth2)
 
-适用于已有 Keycloak / OAuth2 体系的场景。HTTP 请求直接携带 JWT，WebSocket 自动换取 session token。
-
-支持传入静态字符串或动态函数（推荐，可随时获取最新 token）：
+For applications already using Keycloak or another OAuth2 provider. HTTP requests carry the JWT directly; WebSocket connections auto-exchange for a session token.
 
 ```typescript
-// 静态 JWT
+// Static string
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
   accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
 });
 
-// 动态函数（推荐）— 每次刷新时调用
+// Dynamic function (recommended — supports token refresh)
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
   accessToken: async () => keycloakAdapter.token,
 });
 ```
 
-### 模式三：apiKey（服务端 / 测试）
+### Mode 3: API Key (Backend / Server-side)
 
-`ak_` 密钥具有完整权限，**不应暴露在浏览器前端**，适合 Node.js 服务端或本地测试。HTTP 请求直接携带 API Key，WebSocket 自动换取 session token。
+`ak_` keys carry full permissions. **Never expose them in browser code.** Use this mode in Node.js services or local development.
 
 ```typescript
 const client = createAiVoxClient({
@@ -109,33 +174,35 @@ const client = createAiVoxClient({
 
 ---
 
-## TTS（文字转语音）
+## Text-to-Speech (TTS)
 
-### 合成音频
+### Synthesize Audio
 
 ```typescript
-const audioBuffer = await client.tts.synthesize('你好，世界', {
-  voice: 'zh-CN-female',
-  model: 'tts-1',           // tts-1 | tts-1-hd，默认 tts-1
-  response_format: 'mp3',   // mp3 | opus | aac | flac | wav | pcm
-  speed: 1.0,               // 0.25 ~ 4.0
-  provider: 'flash',        // flash | turbo | pro
+const audioBuffer = await client.tts.synthesize('Hello, world!', {
+  voice: 'en-US-female',
+  model: 'tts-1-hd',        // 'tts-1' | 'tts-1-hd' (default: 'tts-1')
+  response_format: 'mp3',    // 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
+  speed: 1.0,                // 0.25 – 4.0
+  provider: 'flash',         // 'flash' | 'turbo' | 'pro'
 });
 
-// 在浏览器中播放
+// Play in browser
 const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-const url = URL.createObjectURL(blob);
-new Audio(url).play();
+new Audio(URL.createObjectURL(blob)).play();
 ```
 
-### 流式合成
+### Streaming Synthesis
+
+Receive audio as a stream — ideal for long-form content or low-latency playback.
 
 ```typescript
-const response = await client.tts.synthesizeStream('长篇文字内容...', {
-  voice: 'zh-CN-female',
+const response = await client.tts.synthesizeStream('Long form content...', {
+  voice: 'en-US-female',
+  response_format: 'mp3',
 });
 
-// 将流写入文件（Node.js）
+// Pipe to file (Node.js)
 import { createWriteStream } from 'fs';
 const writer = createWriteStream('output.mp3');
 response.body!.pipeTo(
@@ -143,115 +210,123 @@ response.body!.pipeTo(
 );
 ```
 
-### 管理声音
+### Custom Speaker Management
 
 ```typescript
-// 列出可用声音
-const names: string[] = await client.tts.listSpeakers();
+// List available voices
+const voices: string[] = await client.tts.listSpeakers();
 
-// 上传自定义声音
-const audioFile = document.querySelector('input[type=file]').files[0];
-await client.tts.addSpeaker('my-voice', audioFile, '这是录音文本', {
-  description: '自定义声音描述',
+// Clone a voice from an audio sample
+const file = document.querySelector<HTMLInputElement>('input[type=file]')!.files![0];
+await client.tts.addSpeaker('my-voice', file, 'This is the transcript of the recording.', {
+  description: 'Custom voice description',
 });
 
-// 删除声音
+// Remove a custom voice
 await client.tts.deleteSpeaker('my-voice');
 ```
 
 ---
 
-## STT（语音转文字）
+## Speech-to-Text (STT)
 
-### 转写音频文件
+### Transcribe an Audio File
 
 ```typescript
 const result = await client.stt.transcribe(audioBlob, {
-  language: 'zh',
-  forced_alignment: false,
-  provider: 'flash',  // flash | turbo
+  language: 'en',
+  forced_alignment: false,  // Enable word-level timestamps
+  provider: 'flash',        // 'flash' | 'turbo'
 });
 
-console.log(result.text);        // 转写文本
-console.log(result.language);    // 识别语言
-console.log(result.timestamps);  // 词级时间戳（forced_alignment 时有值）
+console.log(result.text);        // Transcribed text
+console.log(result.language);    // Detected language code
+console.log(result.timestamps);  // Word-level timestamps (if forced_alignment: true)
 ```
 
-### 流式转写（SSE）
+### Streaming Transcription (SSE)
+
+Receive incremental transcription results as the server processes your audio.
 
 ```typescript
 const result = await client.stt.transcribeStream(
   audioBlob,
-  { language: 'zh', provider: 'flash' },
+  { language: 'en', provider: 'flash' },
   {
-    onChunk: (chunk) => console.log('增量:', chunk.text, chunk.chunk_index),
-    onFinal: (chunk) => console.log('最终:', chunk.text),
-    onError: (err)  => console.error(err),
+    onChunk: (chunk) => console.log('Partial:', chunk.text, 'index:', chunk.chunk_index),
+    onFinal: (chunk) => console.log('Final:', chunk.text),
+    onError: (err)  => console.error('Error:', err),
   },
 );
-// result: { text, language }
+
+console.log(result.text);      // Full transcription
+console.log(result.language);  // Detected language
 ```
 
-### 实时转写（WebSocket）
+### Real-time Transcription (WebSocket)
+
+For live microphone input with sub-second latency.
 
 ```typescript
 const stt = await client.stt.connectWebSocket(
-  { language: 'zh', provider: 'flash' },
+  { language: 'en', provider: 'flash' },
   {
-    onReady:   ({ session_id }) => console.log('会话:', session_id),
-    onPartial: ({ text })       => console.log('实时:', text),
-    onSegment: ({ text, segment_index }) => console.log('分段:', segment_index, text),
-    onFinal:   ({ text })       => console.log('完成:', text),
-    onError:   (e)              => console.error(e),
-    onClose:   ()               => console.log('已断开'),
+    onReady:   ({ session_id }) => console.log('Session ready:', session_id),
+    onPartial: ({ text })       => console.log('Live:', text),
+    onSegment: ({ text, segment_index }) => console.log(`Segment ${segment_index}:`, text),
+    onFinal:   ({ text })       => console.log('Final:', text),
+    onError:   (e)              => console.error('Error:', e),
+    onClose:   ()               => console.log('Connection closed'),
   },
 );
 
-// 发送 PCM 音频帧（ArrayBuffer 或 Int16Array）
+// Send raw PCM audio frames (ArrayBuffer or Int16Array)
 stt.sendAudio(pcmBuffer);
 
-// 结束录音（服务端自动 flush 并关闭）
+// Signal end of stream — server flushes and closes
 stt.stop();
 ```
 
 ---
 
-## Translation（语音翻译）
+## Audio Translation
 
-### 翻译音频文件（SSE 流水线）
+### File Translation (SSE Pipeline)
 
-`translate()` 通过 SSE 依次推送 STT → 翻译 → TTS 各阶段事件，方法返回最终结果。
+`translate()` pushes events for each pipeline stage: **STT → Translation → TTS**. The method resolves with the final result.
 
 ```typescript
 const result = await client.translation.translate(
   audioBlob,
   {
     target_lang: 'en',
-    source_lang: 'zh',          // 可选，不传则自动检测
-    translation_mode: 'llm',    // llm（默认）| mt
+    source_lang: 'zh',           // Optional — auto-detected if omitted
+    translation_mode: 'llm',     // 'llm' (default) | 'mt' (machine translation)
     tts_enabled: true,
     response_format: 'mp3',
     voice: 'en-US-female',
   },
   {
-    onStatus:             ({ stage, message }) => console.log(stage, message),
-    onSttPartial:         ({ text })           => showSubtitle(text),
-    onSttFinal:           ({ text })           => console.log('STT:', text),
-    onTranslationPartial: ({ text })           => showTranslation(text),
-    onTranslationComplete:({ text })           => console.log('译文:', text),
-    onTtsChunk:           (audio, { format, sample_rate }) => playAudio(audio),
-    onTtsComplete:        ({ total_chunks })   => console.log('TTS 完成'),
-    onPipelineComplete:   ({ source_text, translated_text }) =>
-      console.log(source_text, '->', translated_text),
-    onError:              ({ stage, message }) => console.error(stage, message),
+    onStatus:              ({ stage, message }) => console.log(stage, message),
+    onSttPartial:          ({ text })           => showSubtitle(text),
+    onSttFinal:            ({ text })           => console.log('STT:', text),
+    onTranslationPartial:  ({ text })           => showTranslation(text),
+    onTranslationComplete: ({ text })           => console.log('Translation:', text),
+    onTtsChunk:            (audio, { format, sample_rate }) => playAudio(audio),
+    onTtsComplete:         ({ total_chunks })   => console.log('TTS complete'),
+    onPipelineComplete:    ({ source_text, translated_text }) =>
+      console.log(`${source_text} → ${translated_text}`),
+    onError:               ({ stage, message }) => console.error(stage, message),
   },
 );
 
-console.log(result.source_text);  // 原文
-console.log(result.text);         // 译文
+console.log(result.source_text);  // Original text
+console.log(result.text);         // Translated text
 ```
 
-### 实时翻译（WebSocket）
+### Real-time Translation (WebSocket)
+
+End-to-end live translation from microphone input.
 
 ```typescript
 const ws = await client.translation.connectWebSocket(
@@ -263,136 +338,126 @@ const ws = await client.translation.connectWebSocket(
     response_format: 'mp3',
   },
   {
-    onReady:              ({ session_id }) => console.log('会话:', session_id),
-    onSttPartial:         ({ text })       => showSubtitle(text),
-    onSttSegment:         ({ text, segment_index }) => console.log('分段:', text),
-    onTranslationComplete:({ text, target_lang })   => showTranslation(text),
-    onTtsChunk:           (audio, { format, sample_rate }) => playAudio(audio),
-    onSegmentComplete:    ({ source_text, translated_text }) =>
-      console.log(source_text, '->', translated_text),
-    onPipelineComplete:   ({ duration }) => console.log('完成，耗时', duration, 's'),
-    onError:              ({ message, stage }) => console.error(stage, message),
-    onClose:              () => console.log('已断开'),
+    onReady:               ({ session_id }) => console.log('Session:', session_id),
+    onSttPartial:          ({ text })       => showSubtitle(text),
+    onSttSegment:          ({ text, segment_index }) => console.log('Segment:', text),
+    onTranslationComplete: ({ text, target_lang })   => showTranslation(text),
+    onTtsChunk:            (audio, { format, sample_rate }) => playAudio(audio),
+    onSegmentComplete:     ({ source_text, translated_text }) =>
+      console.log(`${source_text} → ${translated_text}`),
+    onPipelineComplete:    ({ duration }) => console.log(`Done in ${duration}s`),
+    onError:               ({ message, stage }) => console.error(stage, message),
+    onClose:               () => console.log('Disconnected'),
   },
 );
 
-// 发送 PCM 音频帧
+// Send raw PCM frames from microphone
 ws.sendAudio(pcmBuffer);
 
-// 结束会话
+// End the session
 ws.stop();
 ```
 
 ---
 
-## Agent 管理
+## Agent Management
 
-### 列出 / 创建 / 更新 / 删除 Agent
+### Create and Manage Agents
 
 ```typescript
-// 列出当前租户的所有 agent
+// List agents for the current tenant
 const agents = await client.agent.listAgents();
 
-// 列出平台预设 agent（所有认证用户可见）
+// List platform-wide agents (visible to all authenticated users)
 const platformAgents = await client.agent.listPlatformAgents();
 
-// 创建 agent
+// Create an agent
 const agent = await client.agent.createAgent({
-  name: '客服助手',
-  description: '面向终端用户的语音客服 agent',
-  system_prompt: '你是一名专业客服，请用简洁友好的语气回答用户问题。',
-  voice_id: 'zh-CN-female',
-  language: 'zh',
-  archetype_id: 'archetype-uuid',     // 可选
-  knowledge_bindings: ['kb-uuid'],    // 绑定知识库
-  skills: ['skill-uuid'],             // 绑定技能
-  memory_policy: { enable_memory: true, num_history_turns: 10 },
+  name: 'Support Assistant',
+  description: 'Voice-enabled customer support agent',
+  system_prompt: 'You are a professional support agent. Be concise and helpful.',
+  voice_id: 'en-US-female',
+  language: 'en',
+  archetype_id: 'archetype-uuid',          // Optional
+  knowledge_bindings: ['kb-uuid'],         // Attach knowledge bases
+  skills: ['skill-uuid'],                  // Attach skills
+  memory_policy: {
+    enable_memory: true,
+    num_history_turns: 10,
+  },
 });
 
-// 获取 / 更新 / 删除
-const detail = await client.agent.getAgent(agent.id);
-await client.agent.updateAgent(agent.id, { name: '新名称' });
+// Get / Update / Delete
+const detail  = await client.agent.getAgent(agent.id);
+await client.agent.updateAgent(agent.id, { name: 'Updated Name' });
 await client.agent.deleteAgent(agent.id);
 ```
 
-### 快速发起对话（chat）
+### Start a Conversation
 
-`chat()` 返回 `{ session_id, room_id }`，再调用 `getLiveKitToken()` 即可接入语音。
+`chat()` creates a session and returns `{ session_id, room_id }`. Use `getLiveKitToken()` to join the voice room.
 
 ```typescript
-const { session_id } = await client.agent.chat(agentId, '你好', {
-  voice_id: 'zh-CN-female',  // 可选，覆盖 agent 默认声音
+const { session_id } = await client.agent.chat(agentId, 'Hello!', {
+  voice_id: 'en-US-female',  // Optional — overrides the agent default
 });
 
-// 获取 LiveKit token，用于加入语音房间
+// Retrieve a LiveKit token for voice connectivity
 const { token, livekit_url } = await client.agent.sessions.getLiveKitToken(session_id);
-// 使用 @livekit/client SDK 连接
+
+// Connect with the official LiveKit client
+import { Room } from '@livekit/client';
+const room = new Room();
+await room.connect(livekit_url, token);
 ```
 
 ---
 
-## Archetype（原型）
+## Knowledge Base
 
-原型定义了 agent 的基础 prompt 和默认技能，可复用于多个 agent。
-
-```typescript
-// CRUD
-const archetypes = await client.archetype.list();
-const arch = await client.archetype.create({
-  name: '客服原型',
-  description: '通用客服角色定义',
-  base_prompt: '你是一名专业客服...',
-});
-const detail = await client.archetype.get(arch.id);
-await client.archetype.update(arch.id, { base_prompt: '更新后的 prompt' });
-await client.archetype.delete(arch.id);
-```
-
----
-
-## Knowledge（知识库）
-
-### CRUD
+### Create and Manage Knowledge Bases
 
 ```typescript
 const kbs = await client.knowledge.list();
+
 const kb = await client.knowledge.create({
-  name: '产品手册',
-  description: '产品相关 FAQ 和操作说明',
+  name: 'Product Manual',
+  description: 'Product FAQs and operating instructions',
 });
-await client.knowledge.update(kb.id, { name: '产品手册 v2' });
+
+await client.knowledge.update(kb.id, { name: 'Product Manual v2' });
 await client.knowledge.delete(kb.id);
 ```
 
-### 摄取内容
+### Ingest Content
 
 ```typescript
-// 摄取纯文本（异步，返回 202）
+// Ingest plain text (asynchronous — returns 202 Accepted)
 await client.knowledge.ingest(kb.id, {
   source_type: 'text',
-  text: '这是要摄取的文本内容...',
-  source_label: '手动录入',
-  language: 'zh',
+  text: 'The content to be embedded and indexed...',
+  source_label: 'Manual entry',
+  language: 'en',
 });
 
-// 摄取 URL
+// Ingest from a URL
 await client.knowledge.ingest(kb.id, {
   source_type: 'url',
-  url: 'https://example.com/docs',
+  url: 'https://example.com/docs/api',
 });
 
-// 上传文件
-const file = document.querySelector('input[type=file]').files[0];
+// Upload a file
+const file = document.querySelector<HTMLInputElement>('input[type=file]')!.files![0];
 await client.knowledge.ingestFile(kb.id, file, file.name);
 ```
 
-### 向量检索
+### Semantic Search
 
 ```typescript
 const results = await client.knowledge.search(kb.id, {
-  query: '如何重置密码',
-  top_k: 5,      // 返回条数，默认 5
-  language: 'zh',
+  query: 'How do I reset my password?',
+  top_k: 5,       // Number of results (default: 5)
+  language: 'en',
 });
 
 results.forEach(r => {
@@ -400,18 +465,28 @@ results.forEach(r => {
 });
 ```
 
----
-
-## Tool（工具）
-
-### CRUD
+### Document Management
 
 ```typescript
-const tools = await client.tool.list();
+const docs = await client.knowledge.listDocuments(kb.id);
+await client.knowledge.deleteDocument(kb.id, docId);
 
-// HTTP 工具
+// Trigger re-ingestion of all documents
+await client.knowledge.reingest(kb.id);
+```
+
+---
+
+## Tools
+
+Extend your agents with external capabilities: HTTP APIs, built-in tools (web search), and MCP servers.
+
+### Create Tools
+
+```typescript
+// HTTP tool — call any REST API
 const httpTool = await client.tool.create({
-  name: '天气查询',
+  name: 'Weather API',
   tool_type: 'http',
   config: {
     url: 'https://api.weather.com/v1/current',
@@ -420,16 +495,16 @@ const httpTool = await client.tool.create({
   },
 });
 
-// 内置工具（Builtin）
-const builtinTool = await client.tool.create({
-  name: '网页搜索',
+// Built-in tool (e.g., web search)
+const searchTool = await client.tool.create({
+  name: 'Web Search',
   tool_type: 'builtin',
   config: { toolkit: 'web_search' },
 });
 
-// MCP 工具
+// MCP tool (SSE transport)
 const mcpTool = await client.tool.create({
-  name: 'MCP 工具',
+  name: 'MCP Tool',
   tool_type: 'mcp',
   config: {
     transport: 'sse',
@@ -437,150 +512,182 @@ const mcpTool = await client.tool.create({
   },
 });
 
-await client.tool.update(httpTool.id, { name: '天气查询 v2' });
+await client.tool.update(httpTool.id, { name: 'Weather API v2' });
 await client.tool.delete(httpTool.id);
 ```
 
-### 查看内置工具目录
+### List Available Built-ins
 
 ```typescript
 const builtins = await client.tool.listBuiltins();
-builtins.forEach(b => {
-  console.log(b.toolkit, '-', b.description);
-});
+builtins.forEach(b => console.log(`${b.toolkit} — ${b.description}`));
 ```
 
 ---
 
-## Skill（技能）
+## Skills
 
-技能是注入到 agent system prompt 的 Markdown 片段，用于扩展 agent 行为。
+Skills are Markdown snippets injected into an agent's system prompt. Use them to extend or specialize agent behavior without changing the base prompt.
 
 ```typescript
 const skills = await client.skill.list();
+
 const skill = await client.skill.create({
-  name: '礼貌用语',
-  description: '要求 agent 始终使用敬语',
-  content: '## 礼仪规范\n- 始终使用"您"称呼用户\n- 回答结尾加上"请问还有什么需要帮助的吗？"',
+  name: 'Formal Language',
+  description: 'Instructs the agent to always use formal language',
+  content: `## Tone Guidelines\n- Always address the user formally\n- End each response with "Is there anything else I can help you with?"`,
 });
-await client.skill.update(skill.id, { content: '更新后的技能内容' });
+
+await client.skill.update(skill.id, { content: 'Updated skill content...' });
 await client.skill.delete(skill.id);
 ```
 
 ---
 
-## Room（房间）
+## Archetypes
 
-房间是承载多轮对话 session 的容器，可绑定多个 agent。
+Archetypes are reusable base configurations — combining a base system prompt with a default set of skills. Assign an archetype to multiple agents to ensure consistent behavior.
 
-### CRUD
+```typescript
+const archetypes = await client.archetype.list();
+
+const arch = await client.archetype.create({
+  name: 'Support Agent Template',
+  description: 'Base configuration for all support agents',
+  base_prompt: 'You are a professional support agent...',
+});
+
+await client.archetype.update(arch.id, { base_prompt: 'Updated base prompt...' });
+await client.archetype.delete(arch.id);
+```
+
+---
+
+## Rooms
+
+Rooms are persistent containers for multi-turn voice sessions. A room can host multiple agents and multiple concurrent sessions.
+
+### Create and Manage Rooms
 
 ```typescript
 const rooms = await client.agent.rooms.list();
+
 const room = await client.agent.rooms.create({
-  name: '客服大厅',
-  description: '面向用户的实时语音客服房间',
-  talking_style: 'sequential',  // sequential | moderator_led | freeform
-  visibility: 'private',        // private | shared | public
+  name: 'Support Lobby',
+  description: 'Real-time voice support room',
+  talking_style: 'sequential',   // 'sequential' | 'moderator_led' | 'freeform'
+  visibility: 'private',         // 'private' | 'shared' | 'public'
   agent_ids: [agentId],
 });
-await client.agent.rooms.update(room.id, { name: '新名称' });
+
+await client.agent.rooms.update(room.id, { name: 'Updated Name' });
 await client.agent.rooms.delete(room.id);
 ```
 
-### 管理房间内的 Agent
+### Manage Room Agents
 
 ```typescript
-// 查看房间 agent 列表
 const { agent_ids } = await client.agent.rooms.listAgents(room.id);
 
-// 添加 / 移除 agent
 await client.agent.rooms.addAgent(room.id, agentId);
 await client.agent.rooms.removeAgent(room.id, agentId);
 ```
 
-### 创建 / 列出 Session
+### Start Sessions in a Room
 
 ```typescript
-// 在房间内开启新 session
+// Start a new session
 const session = await client.agent.rooms.startSession(room.id, {
-  voice_id: 'zh-CN-female',  // 可选，覆盖 agent 默认声音
+  voice_id: 'en-US-female',  // Optional — overrides agent default
 });
 
-// 列出房间所有 session
+// List all sessions in a room
 const sessions = await client.agent.rooms.listSessions(room.id);
 ```
 
 ---
 
-## Session（会话）
+## Sessions
 
-### 生命周期
+### Lifecycle Management
 
 ```typescript
-// 列出当前租户所有 session（支持分页和状态过滤）
+// List sessions (with pagination and status filtering)
 const { data, total } = await client.agent.sessions.list({
-  status: 'running',
+  status: 'running',  // 'running' | 'paused' | 'ended'
   page: 1,
   page_size: 20,
 });
 
-// 查看单个 session
 const session = await client.agent.sessions.get(sessionId);
 
-// 暂停 / 恢复 / 结束
 await client.agent.sessions.pause(sessionId);
 await client.agent.sessions.resume(sessionId);
 await client.agent.sessions.end(sessionId);
 
-// 查看参与者
 const participants = await client.agent.sessions.getParticipants(sessionId);
 ```
 
-### 消息记录
+### Message History
 
 ```typescript
-// 查看消息历史
+// Retrieve conversation history
 const { data: messages } = await client.agent.sessions.listMessages(sessionId, {
   page: 1,
   page_size: 50,
 });
 
-// 追加消息
+// Inject a message into the session
 await client.agent.sessions.appendMessage(sessionId, {
   role: 'user',
-  content: '请帮我查一下订单状态',
+  content: 'Please check my order status.',
   speaker_type: 'user',
   speaker_ref_id: 'user-uuid',
 });
 ```
 
-### 加入语音（LiveKit）
+### Voice Access via LiveKit
 
 ```typescript
-// 获取 LiveKit token（首次加入）
+// Get a token for the first participant
 const { token, livekit_url, room_name } = await client.agent.sessions.getLiveKitToken(sessionId, {
-  user_id: 'end-user-123',     // 第三方用户 ID，用作 LiveKit participant identity
-  user_name: '张三',            // 显示名称
+  user_id: 'end-user-123',
+  user_name: 'Alice',
 });
 
-// 以新参与者身份加入已有 session
+// Join as an additional participant
 const { token, livekit_url } = await client.agent.sessions.join(sessionId, {
   user_id: 'end-user-456',
 });
 
-// 使用 @livekit/client 连接
-// import { Room } from '@livekit/client';
-// const room = new Room();
-// await room.connect(livekit_url, token);
+// Connect with @livekit/client
+import { Room } from '@livekit/client';
+const livekitRoom = new Room();
+await livekitRoom.connect(livekit_url, token);
+```
+
+### Participant Context
+
+Override per-participant configuration at runtime.
+
+```typescript
+await client.agent.sessions.upsertParticipantContext(sessionId, 'user-ref-id', {
+  custom_prompt: 'Respond only in Spanish.',
+  variables: { userName: 'Carlos' },
+});
+
+await client.agent.sessions.deleteParticipantContext(sessionId, 'user-ref-id');
 ```
 
 ---
 
-## 错误处理
+## Error Handling
+
+The SDK exports typed error classes for every failure mode.
 
 ```typescript
 import {
+  AiVoxError,
   AuthenticationError,
   InsufficientBalanceError,
   RateLimitedError,
@@ -588,39 +695,45 @@ import {
 } from '@aivox/sdk';
 
 try {
-  const audio = await client.tts.synthesize('你好');
+  const audio = await client.tts.synthesize('Hello');
 } catch (err) {
   if (err instanceof AuthenticationError) {
-    console.error('认证失败，请检查凭证');
+    // Invalid or expired credentials
+    console.error('Authentication failed — check your credentials.');
   } else if (err instanceof InsufficientBalanceError) {
-    console.error('余额不足，请充值');
+    // HTTP 402 — account balance depleted
+    console.error('Insufficient balance — please top up your account.');
   } else if (err instanceof RateLimitedError) {
-    console.error(`请求过频，请 ${err.retryAfter}s 后重试`);
+    // HTTP 429 — too many requests
+    console.error(`Rate limited — retry after ${err.retryAfter}s`);
   } else if (err instanceof ApiError) {
-    console.error(`API 错误 ${err.statusCode}: ${err.message}`);
+    // Any other HTTP error
+    console.error(`API error ${err.statusCode}: ${err.message}`);
   }
 }
 ```
 
 ---
 
-## Token 自动刷新
+## Token Auto-Refresh
 
-SDK 在每次请求前检查 token 是否即将过期（默认提前 30 秒刷新），通过互斥锁防止并发重复刷新。收到 401 响应时自动清除缓存并重试一次。
+The SDK proactively refreshes session tokens before they expire (default: 30 seconds before expiry). A mutex prevents redundant concurrent refresh calls. If a `401` response is received, the SDK clears the cached token and retries the request once automatically.
 
 ```typescript
 const client = createAiVoxClient({
   baseUrl: 'https://api.aivox.com',
   publishableKey: 'pk_xxx',
-  refreshThresholdSeconds: 60, // 提前 60 秒刷新（默认 30）
+  refreshThresholdSeconds: 60,  // Refresh 60s before expiry (default: 30)
 });
 ```
 
 ---
 
-## Node.js 环境
+## Node.js Compatibility
 
-Node.js 18+ 原生支持 `fetch`，无需额外配置。18 以下需传入自定义 fetch：
+Node.js 18+ includes native `fetch` — no extra configuration needed.
+
+For **Node.js < 18**, pass a custom `fetch` implementation:
 
 ```typescript
 import fetch from 'node-fetch';
@@ -632,4 +745,51 @@ const client = createAiVoxClient({
 });
 ```
 
+---
 
+## TypeScript Support
+
+The SDK is written in TypeScript and ships full type declarations out of the box. Every request option, response shape, and callback signature is typed.
+
+```typescript
+import {
+  createAiVoxClient,
+  type AiVoxClientConfig,
+  type SynthesizeOptions,
+  type TranscribeResult,
+  type AgentResponse,
+  type SessionResponse,
+  type KnowledgeResponse,
+  type TranslationResult,
+  AiVoxError,
+  AuthenticationError,
+  ApiError,
+} from '@aivox/sdk';
+```
+
+---
+
+## Demo Application
+
+A full-featured Vue 3 + Vite demo app is included under the `demo/` directory. It provides an interactive UI for every SDK feature, including real-time microphone recording, log viewing, and LiveKit voice sessions.
+
+```bash
+cd demo
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` and enter your credentials to explore all capabilities interactively.
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE) for details.
+
+---
+
+<div align="center">
+Built with care by the <strong>AudarAI</strong> team.<br/>
+Questions? Open an issue or visit <a href="https://audarai.com">audarai.com</a>.
+</div>
