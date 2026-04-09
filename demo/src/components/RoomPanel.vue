@@ -3,7 +3,7 @@ import { ref, computed, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, SessionWithContextResponse, SessionListResponse, MessageResponse, Participant, SkillResponse, ToolResponse, AgentBinding } from "@aivox/sdk";
+import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, SessionWithContextResponse, SessionListResponse, MessageResponse, Participant, SkillResponse, ToolResponse, AgentBinding, PhaseConfig } from "@aivox/sdk";
 import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant as LkParticipantBase } from "livekit-client";
 
 const { client } = useClient();
@@ -122,6 +122,8 @@ const editRoomForm = ref({
   visibility: "private" as "private" | "shared" | "public",
   talking_style: "sequential" as "sequential" | "moderator_led" | "freeform",
   speaking_rules: "",
+  phase_loop: false,
+  phases: [] as PhaseConfig[],
   auto_start: false,
   skill_ids: [] as string[],
   tool_ids: [] as string[],
@@ -152,6 +154,8 @@ function startEditRoom(r: RoomResponse) {
     visibility: (r.visibility || "private") as "private" | "shared" | "public",
     talking_style: (r.talking_style || "sequential") as "sequential" | "moderator_led" | "freeform",
     speaking_rules: r.speaking_rules || "",
+    phase_loop: r.phase_loop ?? false,
+    phases: r.phases ? r.phases.map(p => ({ ...p })) : [],
     language: r.language ?? "",
     auto_start: r.auto_start ?? false,
     skill_ids: [...(r.skill_ids || [])],
@@ -160,6 +164,21 @@ function startEditRoom(r: RoomResponse) {
 }
 
 function cancelEditRoom() { editingRoomId.value = null; }
+
+function addPhase() {
+  editRoomForm.value.phases.push({ name: "", executor: "agent", order: "sequential", advance_on: "all_acted", prompt: "" });
+}
+function removePhase(i: number) { editRoomForm.value.phases.splice(i, 1); }
+function movePhaseUp(i: number) {
+  if (i === 0) return;
+  const p = editRoomForm.value.phases;
+  [p[i - 1], p[i]] = [p[i], p[i - 1]];
+}
+function movePhaseDown(i: number) {
+  const p = editRoomForm.value.phases;
+  if (i >= p.length - 1) return;
+  [p[i], p[i + 1]] = [p[i + 1], p[i]];
+}
 
 async function saveEditRoom() {
   if (!editingRoomId.value) return;
@@ -173,6 +192,8 @@ async function saveEditRoom() {
       visibility: editRoomForm.value.visibility,
       talking_style: editRoomForm.value.talking_style,
       speaking_rules: editRoomForm.value.speaking_rules || undefined,
+      phase_loop: editRoomForm.value.phase_loop,
+      phases: editRoomForm.value.phases.length ? editRoomForm.value.phases : undefined,
       language: editRoomForm.value.language || undefined,
       auto_start: editRoomForm.value.auto_start,
       skill_ids: editRoomForm.value.skill_ids,
@@ -183,6 +204,19 @@ async function saveEditRoom() {
     if (idx >= 0) rooms.value[idx] = updated;
     log(`Room 更新成功: ${updated.id}`, "ok");
     editingRoomId.value = null;
+  } catch (err) {
+    logError(err);
+  }
+}
+
+async function generatePhasesForEdit() {
+  if (!editingRoomId.value) return;
+  log("LLM 生成 phases...", "info");
+  try {
+    const updated = await client.value!.agent.rooms.generatePhases(editingRoomId.value, editRoomForm.value.speaking_rules);
+    editRoomForm.value.phases = updated.phases ? updated.phases.map(p => ({ ...p })) : [];
+    editRoomForm.value.phase_loop = updated.phase_loop ?? false;
+    log(`已生成 ${editRoomForm.value.phases.length} 个 phase`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -378,7 +412,7 @@ async function getParticipants() {
 }
 
 function participantDisplayName(p: Participant): string {
-  if (p.name) return p.name as string;
+  if (p.context?.display_name) return p.context.display_name;
   if (p.type === "agent") {
     const agent = agentsList.value.find(a => a.id === p.ref_id);
     if (agent) return agent.name;
@@ -736,6 +770,70 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         <div class="field">
           <label>speaking_rules</label>
           <textarea v-model="editRoomForm.speaking_rules" rows="2" placeholder="自然语言规则，LLM 会自动解析为结构化 phases（可选）" />
+          <button class="btn btn-sm btn-outline" style="margin-top:0.4rem"
+                  :disabled="!editRoomForm.speaking_rules.trim()"
+                  @click="generatePhasesForEdit">LLM 生成 phases</button>
+        </div>
+        <div class="field">
+          <div class="row" style="align-items:center;margin-bottom:0.4rem">
+            <label style="margin:0">phases（speaking_rules 优先）</label>
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;margin:0 0 0 auto">
+              <input v-model="editRoomForm.phase_loop" type="checkbox" />
+              phase_loop
+            </label>
+          </div>
+          <div v-if="!editRoomForm.phases.length" class="empty-tip">暂无 phase，点击「添加」新建</div>
+          <div v-for="(ph, i) in editRoomForm.phases" :key="i" class="phase-editor-card">
+            <div class="phase-editor-header">
+              <span class="phase-index">Phase {{ i + 1 }}</span>
+              <div class="phase-editor-actions">
+                <button class="btn btn-sm btn-outline" :disabled="i === 0" @click="movePhaseUp(i)">↑</button>
+                <button class="btn btn-sm btn-outline" :disabled="i === editRoomForm.phases.length - 1" @click="movePhaseDown(i)">↓</button>
+                <button class="btn btn-sm btn-danger" @click="removePhase(i)">删除</button>
+              </div>
+            </div>
+            <div class="row" style="gap:0.5rem">
+              <div class="field" style="flex:2">
+                <label>name</label>
+                <input v-model="ph.name" type="text" placeholder="phase 名称" />
+              </div>
+              <div class="field" style="flex:2">
+                <label>executor</label>
+                <select v-model="ph.executor">
+                  <option value="agent">agent</option>
+                  <option value="user">user</option>
+                  <option value="agent+user">agent+user</option>
+                  <option value="router">router</option>
+                </select>
+              </div>
+              <div class="field" style="flex:2">
+                <label>order</label>
+                <select v-model="ph.order">
+                  <option value="sequential">sequential</option>
+                  <option value="any">any</option>
+                  <option value="fixed">fixed</option>
+                </select>
+              </div>
+              <div class="field" style="flex:2">
+                <label>advance_on</label>
+                <select v-model="ph.advance_on">
+                  <option value="all_acted">all_acted</option>
+                  <option value="external">external</option>
+                </select>
+              </div>
+            </div>
+            <div class="row" style="gap:0.5rem">
+              <div class="field" style="flex:3">
+                <label>participants（可选，如 active_agents / agent:0）</label>
+                <input v-model="ph.participants" type="text" placeholder="active_agents" />
+              </div>
+            </div>
+            <div class="field">
+              <label>prompt</label>
+              <textarea v-model="ph.prompt" rows="2" placeholder="此 phase 中 agent/router 使用的系统提示词" />
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" style="margin-top:0.4rem" @click="addPhase">+ 添加 Phase</button>
         </div>
         <div class="field">
           <label>agent_ids</label>
@@ -902,9 +1000,10 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
       <div v-if="roomAgents" class="agent-list">
         <div v-if="!roomAgents.agent_ids.length" class="empty-tip">暂无 Agent</div>
-        <div v-for="aid in roomAgents.agent_ids" :key="aid" class="agent-row">
-          <span class="agent-id" :title="aid">{{ aid.slice(0, 8) }}… {{ aid }}</span>
-          <button class="btn btn-sm btn-danger" @click="removeRoomAgent(aid)">移除</button>
+        <div v-for="aid in roomAgents.agent_ids" :key="aid.agent_id" class="agent-row">
+          <span class="agent-id" :title="aid.agent_id">{{ aid.agent_id.slice(0, 8) }}… {{ aid.agent_id }}</span>
+          <span v-if="aid.count && aid.count > 1" class="agent-count">×{{ aid.count }}</span>
+          <button class="btn btn-sm btn-danger" @click="removeRoomAgent(aid.agent_id)">移除</button>
         </div>
       </div>
 
@@ -1149,10 +1248,12 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <button class="btn btn-sm btn-outline" @click="getParticipants">刷新</button>
         </div>
         <div v-if="!participants.length" class="empty-tip">暂无成员</div>
-        <div v-for="p in participants" :key="p.ref_id" class="agent-row">
+        <div v-for="p in participants" :key="p.context_ref_id || p.ref_id" class="agent-row">
           <span class="role-badge">{{ p.type }}</span>
+          <span v-if="p.slot !== undefined" class="agent-count">#{{ p.slot }}</span>
           <span class="agent-id">{{ participantDisplayName(p) }}</span>
           <span class="agent-id ref-id-muted" :title="p.ref_id">{{ p.ref_id.slice(0, 8) }}…</span>
+          <span v-if="p.context && !p.context.is_active" class="role-badge" style="background:#f5a623">离线</span>
         </div>
       </div>
 
@@ -1164,8 +1265,10 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             <label>目标 Agent</label>
             <select v-model="replyTargetRefId">
               <option value="">— 请选择 —</option>
-              <option v-for="p in participants.filter(p => p.type === 'agent')" :key="p.ref_id" :value="p.ref_id">
-                {{ participantDisplayName(p) }}
+              <option v-for="p in participants.filter(p => p.type === 'agent')"
+                      :key="p.context_ref_id || p.ref_id"
+                      :value="p.ref_id">
+                {{ participantDisplayName(p) }}{{ p.slot !== undefined ? ` #${p.slot}` : '' }}
               </option>
             </select>
           </div>
@@ -1755,5 +1858,28 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
   font-size: 0.72rem;
   background: #ede9fe;
   color: #5b21b6;
+}
+/* Phase editor */
+.phase-editor-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: #f8fafc;
+}
+.phase-editor-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.phase-index {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #5b21b6;
+}
+.phase-editor-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.3rem;
 }
 </style>

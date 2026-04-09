@@ -33,6 +33,20 @@ export class RoomApi {
     await this._http.request<unknown>("DELETE", `/v1/agent/rooms/${encodeURIComponent(roomId)}`);
   }
 
+  /**
+   * Generate phases from the provided speaking_rules via LLM and save the result.
+   */
+  async generatePhases(roomId: string, speakingRules: string): Promise<RoomResponse> {
+    return this._http.request<RoomResponse>(
+      "POST",
+      `/v1/agent/rooms/${encodeURIComponent(roomId)}/phases/generate`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ speaking_rules: speakingRules }),
+      },
+    );
+  }
+
   // ── Room agents ───────────────────────────────────────────────────────────
 
   async listAgents(roomId: string): Promise<RoomAgentListResponse> {

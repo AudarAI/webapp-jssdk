@@ -521,8 +521,15 @@ export interface RoomUpdate {
   agent_ids?: AgentBinding[];
   visibility?: "private" | "shared" | "public";
   talking_style?: "sequential" | "moderator_led" | "freeform";
-  /** Updating speaking_rules automatically regenerates phases via LLM. */
+  /** Updating speaking_rules automatically regenerates phases via LLM (takes priority over phases). */
   speaking_rules?: string;
+  /**
+   * Directly set phases, bypassing LLM generation.
+   * Ignored if speaking_rules is also provided in the same request.
+   */
+  phases?: PhaseConfig[];
+  /** Directly set whether phases loop. Ignored if speaking_rules is also provided. */
+  phase_loop?: boolean;
   auto_start?: boolean;
   /** Default language for all agents in this room (e.g. "zh", "en"). */
   language?: string;
@@ -570,19 +577,35 @@ export interface RoomAddAgent {
 
 export interface RoomAgentListResponse {
   room_id: string;
-  agent_ids: string[];
+  agent_ids: AgentBinding[];
 }
 
 
 // ── Session types ─────────────────────────────────────────────────────────────
+
+/** Inline participant context embedded in the participants list response. */
+export interface ParticipantInlineContext {
+  id: string;
+  ref_type: string;
+  role: string | null;
+  display_name: string | null;
+  turn_order: number | null;
+  is_active: boolean;
+  deactivated_at: string | null;
+  variables: Record<string, unknown>;
+}
 
 export interface Participant {
   /** "user" | "agent" | custom type */
   type: string;
   /** UUID of the user or agent */
   ref_id: string;
-  /** Display name of the participant, if returned by the server */
-  name?: string;
+  /** Slot index for multi-instance agents (0-based). */
+  slot?: number;
+  /** Per-slot unique reference ID used as the context key. */
+  context_ref_id?: string;
+  /** Participant context data, populated by GET /{session_id}/participants. Null if no context set. */
+  context?: ParticipantInlineContext | null;
   [key: string]: unknown;
 }
 

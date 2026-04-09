@@ -67,6 +67,7 @@ export type {
   RoomAddAgent,
   RoomAgentListResponse,
   Participant,
+  ParticipantInlineContext,
   SessionCreate,
   SessionResponse,
   RoomSummary,
