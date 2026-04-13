@@ -7,7 +7,7 @@ import type {
   KnowledgeResponse,
   KnowledgeDocumentResponse,
   SearchResultItem,
-} from "@aivox/sdk";
+} from "@audarai/sdk";
 
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();

@@ -1,7 +1,7 @@
 {
-  "name": "@aivox/sdk",
+  "name": "@audarai/sdk",
   "version": "0.1.0",
-  "description": "AiVox JavaScript/TypeScript SDK for TTS, STT, and Translation APIs",
+  "description": "AudarAI JavaScript/TypeScript SDK for TTS, STT, and Translation APIs",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",

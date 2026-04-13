@@ -1,25 +1,25 @@
-export class AiVoxError extends Error {
+export class AudaraiError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "AiVoxError";
+    this.name = "AudaraiError";
   }
 }
 
-export class AuthenticationError extends AiVoxError {
+export class AuthenticationError extends AudaraiError {
   constructor(message = "Authentication failed") {
     super(message);
     this.name = "AuthenticationError";
   }
 }
 
-export class InsufficientBalanceError extends AiVoxError {
+export class InsufficientBalanceError extends AudaraiError {
   constructor(message = "Insufficient balance") {
     super(message);
     this.name = "InsufficientBalanceError";
   }
 }
 
-export class RateLimitedError extends AiVoxError {
+export class RateLimitedError extends AudaraiError {
   readonly retryAfter?: number;
 
   constructor(message = "Rate limit exceeded", retryAfter?: number) {
@@ -29,7 +29,7 @@ export class RateLimitedError extends AiVoxError {
   }
 }
 
-export class ApiError extends AiVoxError {
+export class ApiError extends AudaraiError {
   readonly statusCode: number;
   readonly code: number;
 

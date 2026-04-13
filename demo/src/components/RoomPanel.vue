@@ -3,7 +3,7 @@ import { ref, computed, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, SessionWithContextResponse, SessionListResponse, MessageResponse, Participant, SkillResponse, ToolResponse, AgentBinding, PhaseConfig } from "@aivox/sdk";
+import type { RoomResponse, RoomAgentListResponse, AgentResponse, SessionResponse, SessionWithContextResponse, SessionListResponse, MessageResponse, Participant, SkillResponse, ToolResponse, AgentBinding, PhaseConfig } from "@audarai/sdk";
 import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant as LkParticipantBase } from "livekit-client";
 
 const { client } = useClient();

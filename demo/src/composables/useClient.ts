@@ -1,8 +1,8 @@
 import { shallowRef, ref, readonly, markRaw } from "vue";
-import { createAiVoxClient, type AiVoxClientConfig } from "@aivox/sdk";
-import type { AiVoxClient, TtsApi, SttApi, TranslationApi, AgentApi, KnowledgeApi, ToolApi, SkillApi, ArchetypeApi } from "@aivox/sdk";
+import { createAudaraiClient, type AudaraiClientConfig } from "@audarai/sdk";
+import type { AudaraiClient, TtsApi, SttApi, TranslationApi, AgentApi, KnowledgeApi, ToolApi, SkillApi, ArchetypeApi } from "@audarai/sdk";
 
-export type ConnectedClient = AiVoxClient & {
+export type ConnectedClient = AudaraiClient & {
   tts: TtsApi;
   stt: SttApi;
   translation: TranslationApi;
@@ -18,8 +18,8 @@ const _client = shallowRef<ConnectedClient | null>(null);
 const _connected = ref(false);
 
 export function useClient() {
-  async function connect(cfg: AiVoxClientConfig): Promise<void> {
-    const c = createAiVoxClient(cfg) as ConnectedClient;
+  async function connect(cfg: AudaraiClientConfig): Promise<void> {
+    const c = createAudaraiClient(cfg) as ConnectedClient;
     // Probe connectivity
     await c.tts.listSpeakers();
     _client.value = markRaw(c);

@@ -1,5 +1,5 @@
 {
-  "name": "aivox-sdk-demo",
+  "name": "audarai-sdk-demo",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aivox/sdk": "file:..",
+    "@audarai/sdk": "file:..",
     "livekit-client": "^2.18.0",
     "vue": "^3.5.0"
   },

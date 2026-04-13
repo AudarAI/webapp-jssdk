@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { ArchetypeResponse } from "@aivox/sdk";
+import type { ArchetypeResponse } from "@audarai/sdk";
 
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();

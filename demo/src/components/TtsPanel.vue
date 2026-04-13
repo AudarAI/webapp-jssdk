@@ -25,7 +25,7 @@ async function listSpeakers() {
 }
 
 // ── Synthesize ────────────────────────────────────────────────────────────────
-const text          = ref("你好，这是 AiVox 语音合成测试。");
+const text          = ref("你好，这是 AudarAI 语音合成测试。");
 const voice         = ref("");
 const model         = ref("tts-1");
 const format        = ref<"mp3" | "wav" | "opus" | "aac" | "flac" | "pcm">("mp3");

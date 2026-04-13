@@ -4,7 +4,7 @@ import {
   AuthenticationError,
   InsufficientBalanceError,
   RateLimitedError,
-} from "@aivox/sdk";
+} from "@audarai/sdk";
 
 export type LogLevel = "ok" | "err" | "info" | "warn" | "";
 

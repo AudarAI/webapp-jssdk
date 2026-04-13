@@ -3,7 +3,7 @@ import { ref, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, SessionResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse } from "@aivox/sdk";
+import type { AgentResponse, SessionResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse } from "@audarai/sdk";
 import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();

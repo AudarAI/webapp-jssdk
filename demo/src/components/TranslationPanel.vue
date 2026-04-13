@@ -4,7 +4,7 @@ import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import { useMicrophone } from "../composables/useMicrophone";
 import { bufferToObjectUrl, concatBuffers, pcmToWav, fmtSize } from "../utils/audio";
-import type { TranslationWebSocket } from "@aivox/sdk";
+import type { TranslationWebSocket } from "@audarai/sdk";
 import LogBox from "./LogBox.vue";
 import DropZone from "./DropZone.vue";
 

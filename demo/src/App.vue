@@ -44,7 +44,7 @@ const PANEL_TITLES: Record<Panel, string> = {
 
 <template>
   <header>
-    <span class="logo">AiVox JS SDK</span>
+    <span class="logo">AudarAI JS SDK</span>
     <span class="subtitle">交互测试面板</span>
     <span class="badge" :class="connected ? 'badge-ok' : 'badge-idle'">
       {{ connected ? "✓ 已连接" : "未连接" }}

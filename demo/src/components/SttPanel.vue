@@ -4,7 +4,7 @@ import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import { useMicrophone } from "../composables/useMicrophone";
 import { fmtSize } from "../utils/audio";
-import type { SttWebSocket, SttErrorMessage } from "@aivox/sdk";
+import type { SttWebSocket, SttErrorMessage } from "@audarai/sdk";
 import LogBox from "./LogBox.vue";
 import DropZone from "./DropZone.vue";
 

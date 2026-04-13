@@ -1,4 +1,4 @@
-# @aivox/sdk
+# @audarai/sdk
 
 <div align="center">
 
@@ -18,7 +18,7 @@
 
 ## Overview
 
-`@aivox/sdk` is the official client library for the **AudarAI** platform — a production-grade audio AI infrastructure supporting:
+`@audarai/sdk` is the official client library for the **AudarAI** platform — a production-grade audio AI infrastructure supporting:
 
 - **Text-to-Speech (TTS)** — high-quality voice synthesis with custom speaker cloning
 - **Speech-to-Text (STT)** — accurate transcription via file upload, SSE streaming, or real-time WebSocket
@@ -61,13 +61,13 @@ Designed for both **browser** and **Node.js (18+)** environments with first-clas
 
 ```bash
 # npm
-npm install @aivox/sdk@github:AudarAI/webapp-jssdk
+npm install @audarai/sdk@github:AudarAI/webapp-jssdk
 
 # pnpm
-pnpm add @aivox/sdk@github:AudarAI/webapp-jssdk
+pnpm add @audarai/sdk@github:AudarAI/webapp-jssdk
 
 # yarn
-yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
+yarn add @audarai/sdk@github:AudarAI/webapp-jssdk
 ```
 
 Or pin it in `package.json`:
@@ -75,7 +75,7 @@ Or pin it in `package.json`:
 ```json
 {
   "dependencies": {
-    "@aivox/sdk": "github:AudarAI/webapp-jssdk"
+    "@audarai/sdk": "github:AudarAI/webapp-jssdk"
   }
 }
 ```
@@ -91,11 +91,11 @@ npm install /path/to/webapp-jssdk
 ## Quick Start
 
 ```typescript
-import { createAiVoxClient } from '@aivox/sdk';
+import { createAudaraiClient } from '@audarai/sdk';
 
 // 1. Create a client
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_your_key_here',
 });
 
@@ -131,8 +131,8 @@ The SDK supports three mutually exclusive authentication modes. Choose exactly o
 `pk_` keys are safe to include in client-side code. The server validates the request `Origin` against your configured allowlist.
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_xxx',
 });
 ```
@@ -149,14 +149,14 @@ For applications already using Keycloak or another OAuth2 provider. HTTP request
 
 ```typescript
 // Static string
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
 });
 
 // Dynamic function (recommended — supports token refresh)
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   accessToken: async () => keycloakAdapter.token,
 });
 ```
@@ -166,8 +166,8 @@ const client = createAiVoxClient({
 `ak_` keys carry full permissions. **Never expose them in browser code.** Use this mode in Node.js services or local development.
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   apiKey: 'ak_xxx',
 });
 ```
@@ -687,12 +687,12 @@ The SDK exports typed error classes for every failure mode.
 
 ```typescript
 import {
-  AiVoxError,
+  AudaraiError,
   AuthenticationError,
   InsufficientBalanceError,
   RateLimitedError,
   ApiError,
-} from '@aivox/sdk';
+} from '@audarai/sdk';
 
 try {
   const audio = await client.tts.synthesize('Hello');
@@ -720,8 +720,8 @@ try {
 The SDK proactively refreshes session tokens before they expire (default: 30 seconds before expiry). A mutex prevents redundant concurrent refresh calls. If a `401` response is received, the SDK clears the cached token and retries the request once automatically.
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_xxx',
   refreshThresholdSeconds: 60,  // Refresh 60s before expiry (default: 30)
 });
@@ -738,8 +738,8 @@ For **Node.js < 18**, pass a custom `fetch` implementation:
 ```typescript
 import fetch from 'node-fetch';
 
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   apiKey: 'ak_xxx',
   fetch: fetch as typeof globalThis.fetch,
 });
@@ -753,18 +753,18 @@ The SDK is written in TypeScript and ships full type declarations out of the box
 
 ```typescript
 import {
-  createAiVoxClient,
-  type AiVoxClientConfig,
+  createAudaraiClient,
+  type AudaraiClientConfig,
   type SynthesizeOptions,
   type TranscribeResult,
   type AgentResponse,
   type SessionResponse,
   type KnowledgeResponse,
   type TranslationResult,
-  AiVoxError,
+  AudaraiError,
   AuthenticationError,
   ApiError,
-} from '@aivox/sdk';
+} from '@audarai/sdk';
 ```
 
 ---

@@ -1,4 +1,4 @@
-export { AiVoxClient } from "./client";
+export { AudaraiClient } from "./client";
 export { TtsApi } from "./tts";
 export { SttApi, SttWebSocket } from "./stt";
 export { TranslationApi, TranslationWebSocket } from "./translation";
@@ -13,7 +13,7 @@ export { ChannelApi } from "./channel";
 export type { TranscribeResult } from "./stt";
 export type { TranslationResult } from "./translation";
 export type {
-  AiVoxClientConfig,
+  AudaraiClientConfig,
   TokenData,
   Speaker,
   ListSpeakersResponse,
@@ -111,9 +111,9 @@ export type {
   SessionActionResponse,
   ActionCountsResponse,
 } from "./types";
-export { AiVoxError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
+export { AudaraiError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
 
-import { AiVoxClient } from "./client";
+import { AudaraiClient } from "./client";
 import { TtsApi } from "./tts";
 import { SttApi } from "./stt";
 import { TranslationApi } from "./translation";
@@ -124,27 +124,27 @@ import { SkillApi } from "./skill";
 import { ArchetypeApi } from "./archetype";
 import { RoomApi } from "./room";
 import { SessionApi } from "./session";
-import type { AiVoxClientConfig } from "./types";
+import type { AudaraiClientConfig } from "./types";
 
 /**
- * Convenience factory that creates an AiVoxClient with TTS, STT, Translation, Agent and Knowledge APIs.
+ * Convenience factory that creates an AudaraiClient with TTS, STT, Translation, Agent and Knowledge APIs.
  *
  * @example
  * // Publishable key — all requests go through a session token
- * const client = createAiVoxClient({ baseUrl: 'https://api.aivox.com', publishableKey: 'pk_xxx' });
+ * const client = createAudaraiClient({ baseUrl: 'https://api.audarai.com', publishableKey: 'pk_xxx' });
  *
  * @example
  * // SSO / OAuth2 access token (Keycloak JWT)
- * const client = createAiVoxClient({
- *   baseUrl: 'https://api.aivox.com',
+ * const client = createAudaraiClient({
+ *   baseUrl: 'https://api.audarai.com',
  *   accessToken: async () => keycloakAdapter.token,
  * });
  *
  * @example
  * // API key
- * const client = createAiVoxClient({ baseUrl: 'https://api.aivox.com', apiKey: 'ak_xxx' });
+ * const client = createAudaraiClient({ baseUrl: 'https://api.audarai.com', apiKey: 'ak_xxx' });
  */
-export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
+export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient & {
   tts: TtsApi;
   stt: SttApi;
   translation: TranslationApi;
@@ -154,7 +154,7 @@ export function createAiVoxClient(config: AiVoxClientConfig): AiVoxClient & {
   skill: SkillApi;
   archetype: ArchetypeApi;
 } {
-  const client = new AiVoxClient(config) as AiVoxClient & {
+  const client = new AudaraiClient(config) as AudaraiClient & {
     tts: TtsApi;
     stt: SttApi;
     translation: TranslationApi;

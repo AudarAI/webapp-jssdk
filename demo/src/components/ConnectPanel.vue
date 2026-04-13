@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useClient } from "../composables/useClient";
-import type { AiVoxClientConfig } from "@aivox/sdk";
+import type { AudaraiClientConfig } from "@audarai/sdk";
 
 const emit = defineEmits<{ connected: [] }>();
 
@@ -35,7 +35,7 @@ async function handleConnect() {
   loading.value = true;
 
   try {
-    let cfg: AiVoxClientConfig;
+    let cfg: AudaraiClientConfig;
     const url = baseUrl.value.trim();
     const c   = cred.value.trim();
 

@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { ToolResponse, BuiltinCatalogEntry, ToolType } from "@aivox/sdk";
+import type { ToolResponse, BuiltinCatalogEntry, ToolType } from "@audarai/sdk";
 
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();

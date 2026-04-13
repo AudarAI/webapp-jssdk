@@ -1,4 +1,4 @@
-# @aivox/sdk
+# @audarai/sdk
 
 <div align="center">
 
@@ -18,7 +18,7 @@
 
 ## 概述
 
-`@aivox/sdk` 是 **AudarAI** 平台的官方客户端库，提供生产级音频 AI 能力：
+`@audarai/sdk` 是 **AudarAI** 平台的官方客户端库，提供生产级音频 AI 能力：
 
 - **文字转语音（TTS）** — 高品质语音合成，支持自定义声音克隆
 - **语音转文字（STT）** — 通过文件上传、SSE 流式或 WebSocket 实时转写
@@ -61,13 +61,13 @@
 
 ```bash
 # npm
-npm install @aivox/sdk@github:AudarAI/webapp-jssdk
+npm install @audarai/sdk@github:AudarAI/webapp-jssdk
 
 # pnpm
-pnpm add @aivox/sdk@github:AudarAI/webapp-jssdk
+pnpm add @audarai/sdk@github:AudarAI/webapp-jssdk
 
 # yarn
-yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
+yarn add @audarai/sdk@github:AudarAI/webapp-jssdk
 ```
 
 或在 `package.json` 中指定：
@@ -75,7 +75,7 @@ yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
 ```json
 {
   "dependencies": {
-    "@aivox/sdk": "github:AudarAI/webapp-jssdk"
+    "@audarai/sdk": "github:AudarAI/webapp-jssdk"
   }
 }
 ```
@@ -91,11 +91,11 @@ npm install /path/to/webapp-jssdk
 ## 快速开始
 
 ```typescript
-import { createAiVoxClient } from '@aivox/sdk';
+import { createAudaraiClient } from '@audarai/sdk';
 
 // 1. 创建客户端
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_your_key_here',
 });
 
@@ -130,8 +130,8 @@ SDK 支持三种互斥的认证方式，必须且只能选择其中一种。
 `pk_` 密钥可安全嵌入前端代码，服务端会校验请求 `Origin` 是否在白名单内。
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_xxx',
 });
 ```
@@ -148,14 +148,14 @@ const client = createAiVoxClient({
 
 ```typescript
 // 静态字符串
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
 });
 
 // 动态函数（推荐，支持 token 刷新）
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   accessToken: async () => keycloakAdapter.token,
 });
 ```
@@ -165,8 +165,8 @@ const client = createAiVoxClient({
 `ak_` 密钥具有完整权限，**严禁暴露在浏览器前端**，适合 Node.js 服务端或本地开发使用。
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   apiKey: 'ak_xxx',
 });
 ```
@@ -686,12 +686,12 @@ SDK 为每种错误场景导出了对应的类型化异常类。
 
 ```typescript
 import {
-  AiVoxError,
+  AudaraiError,
   AuthenticationError,
   InsufficientBalanceError,
   RateLimitedError,
   ApiError,
-} from '@aivox/sdk';
+} from '@audarai/sdk';
 
 try {
   const audio = await client.tts.synthesize('你好');
@@ -719,8 +719,8 @@ try {
 SDK 在每次请求前主动检查 token 是否即将过期（默认提前 30 秒刷新），通过互斥锁防止并发重复刷新。收到 `401` 响应时，自动清除缓存 token 并重试一次。
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_xxx',
   refreshThresholdSeconds: 60,  // 提前 60 秒刷新（默认：30）
 });
@@ -737,8 +737,8 @@ Node.js 18+ 原生支持 `fetch`，无需任何额外配置。
 ```typescript
 import fetch from 'node-fetch';
 
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   apiKey: 'ak_xxx',
   fetch: fetch as typeof globalThis.fetch,
 });
@@ -752,18 +752,18 @@ SDK 完全由 TypeScript 编写，开箱即用，附带完整类型声明。每�
 
 ```typescript
 import {
-  createAiVoxClient,
-  type AiVoxClientConfig,
+  createAudaraiClient,
+  type AudaraiClientConfig,
   type SynthesizeOptions,
   type TranscribeResult,
   type AgentResponse,
   type SessionResponse,
   type KnowledgeResponse,
   type TranslationResult,
-  AiVoxError,
+  AudaraiError,
   AuthenticationError,
   ApiError,
-} from '@aivox/sdk';
+} from '@audarai/sdk';
 ```
 
 ---

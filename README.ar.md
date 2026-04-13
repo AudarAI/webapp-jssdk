@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# @aivox/sdk
+# @audarai/sdk
 
 <div align="center">
 
@@ -20,7 +20,7 @@
 
 ## نظرة عامة
 
-`@aivox/sdk` هي مكتبة العميل الرسمية لمنصة **AudarAI** — بنية تحتية متكاملة للذكاء الاصطناعي الصوتي تشمل:
+`@audarai/sdk` هي مكتبة العميل الرسمية لمنصة **AudarAI** — بنية تحتية متكاملة للذكاء الاصطناعي الصوتي تشمل:
 
 - **تحويل النص إلى كلام (TTS)** — توليف صوتي عالي الجودة مع إمكانية استنساخ أصوات مخصصة
 - **تحويل الكلام إلى نص (STT)** — نسخ دقيق عبر رفع الملفات، أو البث عبر SSE، أو WebSocket في الوقت الفعلي
@@ -63,13 +63,13 @@
 
 ```bash
 # npm
-npm install @aivox/sdk@github:AudarAI/webapp-jssdk
+npm install @audarai/sdk@github:AudarAI/webapp-jssdk
 
 # pnpm
-pnpm add @aivox/sdk@github:AudarAI/webapp-jssdk
+pnpm add @audarai/sdk@github:AudarAI/webapp-jssdk
 
 # yarn
-yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
+yarn add @audarai/sdk@github:AudarAI/webapp-jssdk
 ```
 
 أو تحديده في `package.json`:
@@ -77,7 +77,7 @@ yarn add @aivox/sdk@github:AudarAI/webapp-jssdk
 ```json
 {
   "dependencies": {
-    "@aivox/sdk": "github:AudarAI/webapp-jssdk"
+    "@audarai/sdk": "github:AudarAI/webapp-jssdk"
   }
 }
 ```
@@ -93,11 +93,11 @@ npm install /path/to/webapp-jssdk
 ## البدء السريع
 
 ```typescript
-import { createAiVoxClient } from '@aivox/sdk';
+import { createAudaraiClient } from '@audarai/sdk';
 
 // 1. إنشاء العميل
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_your_key_here',
 });
 
@@ -132,8 +132,8 @@ new Audio(URL.createObjectURL(blob)).play();
 مفاتيح `pk_` آمنة للتضمين في الكود الجانبي للعميل. يتحقق الخادم من أن `Origin` الطلب مدرج في القائمة البيضاء.
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_xxx',
 });
 ```
@@ -150,14 +150,14 @@ const client = createAiVoxClient({
 
 ```typescript
 // سلسلة ثابتة
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
 });
 
 // دالة ديناميكية (موصى به — يدعم تجديد الرمز)
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   accessToken: async () => keycloakAdapter.token,
 });
 ```
@@ -167,8 +167,8 @@ const client = createAiVoxClient({
 تمتلك مفاتيح `ak_` صلاحيات كاملة. **لا تكشفها أبداً في كود المتصفح.** استخدم هذا النمط في خدمات Node.js أو بيئة التطوير المحلية.
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   apiKey: 'ak_xxx',
 });
 ```
@@ -688,12 +688,12 @@ await client.agent.sessions.deleteParticipantContext(sessionId, 'user-ref-id');
 
 ```typescript
 import {
-  AiVoxError,
+  AudaraiError,
   AuthenticationError,
   InsufficientBalanceError,
   RateLimitedError,
   ApiError,
-} from '@aivox/sdk';
+} from '@audarai/sdk';
 
 try {
   const audio = await client.tts.synthesize('مرحباً');
@@ -721,8 +721,8 @@ try {
 يُجدد SDK رموز الجلسة بشكل استباقي قبل انتهاء صلاحيتها (الافتراضي: 30 ثانية قبل الانتهاء). يمنع mutex تجديد طلبات متزامنة مكررة. عند استقبال استجابة `401`، يمسح SDK الرمز المحفوظ مؤقتاً ويُعيد المحاولة تلقائياً مرة واحدة.
 
 ```typescript
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   publishableKey: 'pk_xxx',
   refreshThresholdSeconds: 60,  // التجديد قبل 60 ثانية (الافتراضي: 30)
 });
@@ -739,8 +739,8 @@ const client = createAiVoxClient({
 ```typescript
 import fetch from 'node-fetch';
 
-const client = createAiVoxClient({
-  baseUrl: 'https://api.aivox.com',
+const client = createAudaraiClient({
+  baseUrl: 'https://api.audarai.com',
   apiKey: 'ak_xxx',
   fetch: fetch as typeof globalThis.fetch,
 });
@@ -754,18 +754,18 @@ const client = createAiVoxClient({
 
 ```typescript
 import {
-  createAiVoxClient,
-  type AiVoxClientConfig,
+  createAudaraiClient,
+  type AudaraiClientConfig,
   type SynthesizeOptions,
   type TranscribeResult,
   type AgentResponse,
   type SessionResponse,
   type KnowledgeResponse,
   type TranslationResult,
-  AiVoxError,
+  AudaraiError,
   AuthenticationError,
   ApiError,
-} from '@aivox/sdk';
+} from '@audarai/sdk';
 ```
 
 ---

@@ -4,5 +4,5 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [vue()],
   resolve: { preserveSymlinks: true },
-  optimizeDeps: { exclude: ["@aivox/sdk"] },
+  optimizeDeps: { exclude: ["@audarai/sdk"] },
 });

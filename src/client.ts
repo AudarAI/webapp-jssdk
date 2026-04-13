@@ -1,4 +1,4 @@
-import { AiVoxClientConfig, TokenData } from "./types";
+import { AudaraiClientConfig, TokenData } from "./types";
 import { ApiError, AuthenticationError, InsufficientBalanceError, RateLimitedError } from "./errors";
 
 function parseJwtExp(jwt: string): number | null {
@@ -201,11 +201,11 @@ export class HttpClient {
   }
 }
 
-export class AiVoxClient {
+export class AudaraiClient {
   readonly http: HttpClient;
   private readonly _tokenManager: TokenManager;
 
-  constructor(config: AiVoxClientConfig) {
+  constructor(config: AudaraiClientConfig) {
     const threshold = config.refreshThresholdSeconds ?? 30;
     const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 

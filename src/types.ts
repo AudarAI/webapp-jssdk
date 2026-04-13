@@ -4,7 +4,7 @@ export interface TokenData {
   expires_at?: number;
 }
 
-export interface AiVoxClientConfig {
+export interface AudaraiClientConfig {
   baseUrl: string;
   /**
    * Publishable key (pk_ prefix).
