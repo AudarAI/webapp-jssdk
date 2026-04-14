@@ -204,6 +204,12 @@ export class HttpClient {
 export class AudaraiClient {
   readonly http: HttpClient;
   private readonly _tokenManager: TokenManager;
+  private readonly _livekitUrl?: string;
+  private readonly _fetch: typeof globalThis.fetch;
+  private _preconnected = false;
+
+  /** Known LiveKit server URL for pre-connection optimization. */
+  get livekitUrl(): string | undefined { return this._livekitUrl; }
 
   constructor(config: AudaraiClientConfig) {
     const threshold = config.refreshThresholdSeconds ?? 30;
@@ -287,6 +293,8 @@ export class AudaraiClient {
       };
     }
 
+    this._livekitUrl = config.livekitUrl;
+    this._fetch = fetchImpl;
     this._tokenManager = new TokenManager(tokenProvider, threshold);
 
     const wsTokenManager = wsTokenProvider
@@ -300,5 +308,50 @@ export class AudaraiClient {
       wsTokenManager,
       config.onTokenRefresh,
     );
+
+    // Auto pre-warm DNS/TLS for LiveKit server
+    if (this._livekitUrl) {
+      this.preconnect();
+    }
+  }
+
+  /**
+   * Pre-warm DNS resolution and TLS handshake for the LiveKit server.
+   * Called automatically when `livekitUrl` is configured.
+   * Can also be called manually with a URL discovered at runtime
+   * (e.g. from a `createVoiceSession` response).
+   *
+   * Uses `<link rel="preconnect">` for passive warming and a no-cors fetch
+   * for active TCP+TLS establishment. No CORS errors in console.
+   */
+  preconnect(url?: string): void {
+    const livekitUrl = url || this._livekitUrl;
+    if (!livekitUrl) return;
+
+    // Normalise wss:// → https:// to extract origin
+    const httpUrl = livekitUrl
+      .replace(/^wss:\/\//, "https://")
+      .replace(/^ws:\/\//, "http://");
+    let origin: string;
+    try {
+      origin = new URL(httpUrl).origin;
+    } catch {
+      return;
+    }
+
+    // 1. Inject <link rel="preconnect"> — passive DNS + TLS warming
+    if (typeof document !== "undefined" && !document.querySelector(`link[rel="preconnect"][href="${origin}"]`)) {
+      const link = document.createElement("link");
+      link.rel = "preconnect";
+      link.href = origin;
+      link.crossOrigin = "anonymous";
+      document.head.appendChild(link);
+    }
+
+    // 2. Active warming: no-cors fetch completes TCP + TLS without CORS errors
+    if (!this._preconnected || url) {
+      this._fetch(origin, { mode: "no-cors", method: "HEAD" }).catch(() => {});
+      if (!url) this._preconnected = true;
+    }
   }
 }

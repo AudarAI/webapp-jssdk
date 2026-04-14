@@ -4,7 +4,7 @@ import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
 import type { AgentResponse, SessionResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse } from "@audarai/sdk";
-import { Room, RoomEvent, Track, type TranscriptionSegment, type Participant } from "livekit-client";
+import { Room, RoomEvent, Track, createLocalAudioTrack, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();
@@ -206,31 +206,19 @@ async function startChat() {
   if (!chatMessage.value.trim()) { log("请输入消息", "warn"); return; }
   log(`发起 Chat (agent=${chatAgentId.value})...`, "info");
   try {
-    const res = await client.value!.agent.chat(
-      chatAgentId.value,
-      chatMessage.value,
-      chatVoiceId.value ? { voice_id: chatVoiceId.value } : undefined,
-    );
+    const res = await client.value!.agent.createVoiceSession(chatAgentId.value, {
+      message: chatMessage.value,
+      ...(chatVoiceId.value ? { voice_id: chatVoiceId.value } : {}),
+      ...(userName.value ? { user_name: userName.value } : {}),
+      ...(userId.value ? { user_id: userId.value } : {}),
+    });
     chatSessionId.value = res.session_id;
     chatRoomId.value = res.room_id;
     sessionId.value = res.session_id;
     msgSessionId.value = res.session_id;
-    livekitToken.value = null;
+    livekitToken.value = res as unknown as Record<string, unknown>;
     log(`Chat 成功 — session_id: ${res.session_id}`, "ok");
     await loadMessages();
-  } catch (err) {
-    logError(err);
-  }
-}
-
-async function getLiveKitToken() {
-  if (!chatSessionId.value) { log("请先发起 Chat", "warn"); return; }
-  log("获取 LiveKit Token...", "info");
-  try {
-    const tokenData = (userName.value || userId.value) ? { ...(userName.value ? { user_name: userName.value } : {}), ...(userId.value ? { user_id: userId.value } : {}) } : undefined;
-    const res = await client.value!.agent.sessions.getLiveKitToken(chatSessionId.value, tokenData);
-    livekitToken.value = res as unknown as Record<string, unknown>;
-    log("Token 获取成功", "ok");
   } catch (err) {
     logError(err);
   }
@@ -348,7 +336,8 @@ function teardownRoom() {
   voiceState.value = "idle";
 }
 
-async function _connectWithToken(tokenRes: { token: string; livekit_url: string }) {
+/** Create Room + attach all event listeners (sync, no I/O). */
+function _prepareRoom(): Room {
   const room = new Room({
     adaptiveStream: true,
     audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -405,16 +394,20 @@ async function _connectWithToken(tokenRes: { token: string; livekit_url: string 
         subtitleLines.value.push({ id: seg.id, text: seg.text, role, final: seg.final });
       }
     }
-    // Keep last MAX_FINAL_SUBTITLES final lines + all live (non-final) lines
     const finals = subtitleLines.value.filter(l => l.final).slice(-MAX_FINAL_SUBTITLES);
     const lives  = subtitleLines.value.filter(l => !l.final);
     subtitleLines.value = [...finals, ...lives];
   });
 
   subtitleLines.value = [];
-  await room.connect(tokenRes.livekit_url, tokenRes.token);
-  await room.localParticipant.setMicrophoneEnabled(true);
-  micEnabled.value = true;
+  return room;
+}
+
+/** Pre-warm mic permission (fire-and-forget). Browser caches the grant for subsequent getUserMedia calls. */
+function _warmMicrophone(): Promise<void> {
+  return navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(s => { s.getTracks().forEach(t => t.stop()); })
+    .catch(() => {});
 }
 
 async function startVoice() {
@@ -422,18 +415,34 @@ async function startVoice() {
   voiceState.value = "connecting";
   log("发起语音对话...", "info");
   try {
-    const chatRes = await client.value!.agent.chat(
-      voiceAgentId.value,
-      voiceInitMsg.value || "你好",
-      voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : undefined,
-    );
-    voiceSessionId.value = chatRes.session_id;
-    log(`Session: ${chatRes.session_id}`, "info");
+    // 1. Prepare Room + events immediately (sync)
+    const room = _prepareRoom();
 
-    const tokenData = (userName.value || userId.value) ? { ...(userName.value ? { user_name: userName.value } : {}), ...(userId.value ? { user_id: userId.value } : {}) } : undefined;
-    const tokenRes = await client.value!.agent.sessions.getLiveKitToken(chatRes.session_id, tokenData);
-    log(`获取 LiveKit Token 成功 (显示名: "${userName.value || '未设置'}", user_id: "${userId.value || '未设置'}")`, "info");
-    await _connectWithToken(tokenRes);
+    // 2. Parallel: API call + LiveKit pre-warm + mic permission
+    const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
+    if (livekitUrl) {
+      room.prepareConnection(livekitUrl);
+    }
+
+    const [res] = await Promise.all([
+      client.value!.agent.createVoiceSession(voiceAgentId.value, {
+        message: voiceInitMsg.value || "你好",
+        ...(voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : {}),
+        ...(userName.value ? { user_name: userName.value } : {}),
+        ...(userId.value ? { user_id: userId.value } : {}),
+      }),
+      _warmMicrophone(),
+    ]);
+
+    voiceSessionId.value = res.session_id;
+    log(`Session: ${res.session_id} (显示名: "${userName.value || '未设置'}", user_id: "${userId.value || '未设置'}")`, "info");
+
+    // 3. Connect — DNS/TLS already warm, mic permission cached
+    await room.connect(res.livekit_url, res.token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    micEnabled.value = true;
+
+    // Cache livekit_url for future preconnects
   } catch (err) {
     teardownRoom();
     logError(err);
@@ -445,11 +454,30 @@ async function joinVoice() {
   voiceState.value = "connecting";
   log("加入已有 Session...", "info");
   try {
+    // 1. Prepare Room + events immediately
+    const room = _prepareRoom();
+
+    const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
+    if (livekitUrl) {
+      room.prepareConnection(livekitUrl);
+    }
+
+    // 2. Parallel: API call + mic permission
     const tokenData = (userName.value || userId.value) ? { ...(userName.value ? { user_name: userName.value } : {}), ...(userId.value ? { user_id: userId.value } : {}) } : undefined;
-    const tokenRes = await client.value!.agent.sessions.join(joinSessionId.value, tokenData);
+    const [tokenRes] = await Promise.all([
+      client.value!.agent.sessions.join(joinSessionId.value, tokenData),
+      _warmMicrophone(),
+    ]);
+
     voiceSessionId.value = joinSessionId.value;
     log(`Token 获取成功，连接中... (显示名: "${userName.value || '未设置'}", user_id: "${userId.value || '未设置'}")`, "info");
-    await _connectWithToken(tokenRes);
+
+    // 3. Connect
+    await room.connect(tokenRes.livekit_url, tokenRes.token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    micEnabled.value = true;
+
+    (client.value as any)?.preconnect?.(tokenRes.livekit_url);
   } catch (err) {
     teardownRoom();
     logError(err);
@@ -748,7 +776,6 @@ async function appendMessage() {
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" @click="startChat">发起 Chat</button>
-        <button class="btn btn-outline" :disabled="!chatSessionId" @click="getLiveKitToken">获取 LiveKit Token</button>
       </div>
 
       <div v-if="chatSessionId" class="result-box">

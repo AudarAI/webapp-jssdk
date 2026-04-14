@@ -35,6 +35,15 @@ export interface AudaraiClientConfig {
   refreshThresholdSeconds?: number;
   /** Custom fetch implementation (e.g. node-fetch in Node.js environments) */
   fetch?: typeof globalThis.fetch;
+  /**
+   * Known LiveKit server URL for pre-connection optimization.
+   * When provided, consumers can call `Room.prepareConnection(livekitUrl)` before
+   * creating a voice session, eliminating DNS/TLS cold-start latency (~500-800ms).
+   * The actual `livekit_url` returned per-session by the API takes precedence for `room.connect()`.
+   *
+   * @example "wss://livekit.example.com"
+   */
+  livekitUrl?: string;
 }
 
 export interface Speaker {
@@ -443,6 +452,32 @@ export interface AgentResponse {
 export interface AgentChatResponse {
   session_id: string;
   room_id: string;
+}
+
+/**
+ * Request body for the combined voice-session endpoint.
+ * Creates a session and mints a LiveKit token in one call.
+ */
+export interface VoiceSessionRequest {
+  message?: string;
+  voice_id?: string;
+  /** 三方终端用户ID，用作 LiveKit participant identity */
+  user_id?: string;
+  /** 终端用户显示名，用作 LiveKit participant name */
+  user_name?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Response from the combined voice-session endpoint.
+ * Contains both session info and LiveKit connection details.
+ */
+export interface VoiceSessionResponse {
+  session_id: string;
+  room_id: string;
+  token: string;
+  room_name: string;
+  livekit_url: string;
 }
 
 // ── Room types ────────────────────────────────────────────────────────────────

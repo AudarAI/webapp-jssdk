@@ -11,6 +11,7 @@ const baseUrl      = ref("http://localhost:8004");
 const authMode     = ref<"pk" | "accessToken" | "apiKey">("pk");
 const cred         = ref("pk_IHDQAHeZxu6uJ66FkvVor2qGAU-1e8bMuUDZ7i0PIK4");
 const refreshUrl   = ref("");
+const livekitUrl   = ref("");
 const loading      = ref(false);
 const errMsg       = ref("");
 
@@ -39,13 +40,16 @@ async function handleConnect() {
     const url = baseUrl.value.trim();
     const c   = cred.value.trim();
 
+    const lk = livekitUrl.value.trim() || undefined;
+
     if (authMode.value === "pk") {
-      cfg = { baseUrl: url, publishableKey: c };
+      cfg = { baseUrl: url, publishableKey: c, livekitUrl: lk };
     } else if (authMode.value === "accessToken") {
       const rUrl = refreshUrl.value.trim();
       cfg = {
         baseUrl: url,
         accessToken: c,
+        livekitUrl: lk,
         ...(rUrl ? {
           onTokenRefresh: async () => {
             const res = await fetch(rUrl, { method: "POST" });
@@ -58,7 +62,7 @@ async function handleConnect() {
         } : {}),
       };
     } else {
-      cfg = { baseUrl: url, apiKey: c };
+      cfg = { baseUrl: url, apiKey: c, livekitUrl: lk };
     }
 
     await connect(cfg);
@@ -98,6 +102,16 @@ async function handleConnect() {
         v-model="refreshUrl"
         type="text"
         placeholder="POST https://auth.example.com/token/refresh"
+        :disabled="connected"
+      />
+    </div>
+
+    <div class="field">
+      <label>LiveKit URL <span class="hint">（可选，用于预连接优化，减少语音延迟）</span></label>
+      <input
+        v-model="livekitUrl"
+        type="text"
+        placeholder="wss://livekit.example.com"
         :disabled="connected"
       />
     </div>

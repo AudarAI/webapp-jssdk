@@ -523,7 +523,8 @@ async function copySessionId() {
   log("Session ID 已复制到剪贴板，可分享给其他用户加入", "ok");
 }
 
-async function _connectWithToken(tokenRes: { token: string; livekit_url: string }) {
+/** Create Room + attach all event listeners (sync, no I/O). */
+function _prepareRoom(): Room {
   const room = new Room({
     adaptiveStream: true,
     audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -533,7 +534,6 @@ async function _connectWithToken(tokenRes: { token: string; livekit_url: string 
   room.on(RoomEvent.Connected, () => {
     voiceState.value = "connected";
     localIdentity.value = room.localParticipant.identity;
-    // v2: include kind so we can distinguish agents (kind=2) from users (kind=1)
     lkParticipants.value = Array.from(room.remoteParticipants.values())
       .map(p => ({ identity: p.identity, name: p.name, sid: p.sid, kind: p.kind }));
     log(`本地参与者: identity="${room.localParticipant.identity}", name="${room.localParticipant.name}"`, "info");
@@ -561,7 +561,6 @@ async function _connectWithToken(tokenRes: { token: string; livekit_url: string 
     log("语音连接已断开", "info");
     teardownVoice();
   });
-  // v2: per-participant audio elements — supports multiple agents speaking simultaneously
   room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
     if (track.kind === Track.Kind.Audio) {
       let el = _audioElements.get(participant.identity);
@@ -623,9 +622,14 @@ async function _connectWithToken(tokenRes: { token: string; livekit_url: string 
 
   subtitleLines.value = [];
   dataMessages.value = [];
-  await room.connect(tokenRes.livekit_url, tokenRes.token);
-  await room.localParticipant.setMicrophoneEnabled(true);
-  micEnabled.value = true;
+  return room;
+}
+
+/** Pre-warm mic permission (fire-and-forget). */
+function _warmMicrophone(): Promise<void> {
+  return navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(s => { s.getTracks().forEach(t => t.stop()); })
+    .catch(() => {});
 }
 
 async function startVoice() {
@@ -633,10 +637,26 @@ async function startVoice() {
   voiceState.value = "connecting";
   log("获取 LiveKit Token...", "info");
   try {
+    // 1. Prepare Room immediately
+    const room = _prepareRoom();
+
+    const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
+    if (livekitUrl) {
+      room.prepareConnection(livekitUrl);
+    }
+
+    // 2. Parallel: API call + mic permission
     const tokenData = (userName.value || userId.value) ? { ...(userName.value ? { user_name: userName.value } : {}), ...(userId.value ? { user_id: userId.value } : {}) } : undefined;
-    const tokenRes = await client.value!.agent.sessions.getLiveKitToken(sessionId.value, tokenData);
+    const [tokenRes] = await Promise.all([
+      client.value!.agent.sessions.getLiveKitToken(sessionId.value, tokenData),
+      _warmMicrophone(),
+    ]);
     log(`Token 获取成功，连接中... (显示名: "${userName.value || '未设置'}", user_id: "${userId.value || '未设置'}")`, "info");
-    await _connectWithToken(tokenRes);
+
+    // 3. Connect — DNS/TLS already warm
+    await room.connect(tokenRes.livekit_url, tokenRes.token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    micEnabled.value = true;
   } catch (err) {
     teardownVoice();
     logError(err);
@@ -648,10 +668,23 @@ async function joinVoice() {
   voiceState.value = "connecting";
   log("加入已有 Session...", "info");
   try {
+    const room = _prepareRoom();
+
+    const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
+    if (livekitUrl) {
+      room.prepareConnection(livekitUrl);
+    }
+
     const tokenData = (userName.value || userId.value) ? { ...(userName.value ? { user_name: userName.value } : {}), ...(userId.value ? { user_id: userId.value } : {}) } : undefined;
-    const tokenRes = await client.value!.agent.sessions.join(sessionId.value, tokenData);
+    const [tokenRes] = await Promise.all([
+      client.value!.agent.sessions.join(sessionId.value, tokenData),
+      _warmMicrophone(),
+    ]);
     log(`Token 获取成功，连接中... (显示名: "${userName.value || '未设置'}", user_id: "${userId.value || '未设置'}")`, "info");
-    await _connectWithToken(tokenRes);
+
+    await room.connect(tokenRes.livekit_url, tokenRes.token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    micEnabled.value = true;
   } catch (err) {
     teardownVoice();
     logError(err);

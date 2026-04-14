@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { AgentCreate, AgentUpdate, AgentResponse, AgentChatResponse } from "./types";
+import { AgentCreate, AgentUpdate, AgentResponse, AgentChatResponse, VoiceSessionRequest, VoiceSessionResponse } from "./types";
 import { KnowledgeApi } from "./knowledge";
 import { ToolApi } from "./tool";
 import { SkillApi } from "./skill";
@@ -84,5 +84,33 @@ export class AgentApi {
         ...(options?.metadata ? { metadata: options.metadata } : {}),
       }),
     });
+  }
+
+  /**
+   * Create a voice session and get a LiveKit token in a single call.
+   * This is faster than calling `chat()` + `sessions.getLiveKitToken()` separately
+   * as it eliminates one HTTP round-trip and one auth resolution.
+   *
+   * @example
+   * const res = await client.agent.createVoiceSession(agentId, {
+   *   voice_id: "Aria",
+   *   user_name: "Alice",
+   * });
+   * // Connect to LiveKit directly:
+   * const room = new Room();
+   * await room.connect(res.livekit_url, res.token);
+   */
+  async createVoiceSession(
+    agentId: string,
+    options?: VoiceSessionRequest,
+  ): Promise<VoiceSessionResponse> {
+    return this._http.request<VoiceSessionResponse>(
+      "POST",
+      `/v1/agent/agents/${encodeURIComponent(agentId)}/voice-session`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options ?? {}),
+      },
+    );
   }
 }
