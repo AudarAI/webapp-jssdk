@@ -403,46 +403,73 @@ function _prepareRoom(): Room {
   return room;
 }
 
-/** Pre-warm mic permission (fire-and-forget). Browser caches the grant for subsequent getUserMedia calls. */
+// ── Mic pre-warm: acquire permission on page load, not on click ────────────
+let _micWarmed = false;
 function _warmMicrophone(): Promise<void> {
+  if (_micWarmed) return Promise.resolve();
   return navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(s => { s.getTracks().forEach(t => t.stop()); })
+    .then(s => { s.getTracks().forEach(t => t.stop()); _micWarmed = true; })
     .catch(() => {});
+}
+// Fire immediately — browser caches the grant for all subsequent getUserMedia calls
+_warmMicrophone();
+
+// ── LiveKit pre-warm: pre-create Room + signal connection at page load ─────
+// This runs ICE gathering + WebSocket signal setup in the background so that
+// room.connect() later only needs to exchange the join message (~200ms vs ~2s).
+let _prewarmedRoom: Room | null = null;
+function _prewarmLiveKit(): void {
+  const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
+  if (!livekitUrl || _prewarmedRoom) return;
+  _prewarmedRoom = _prepareRoom();
+  _prewarmedRoom.prepareConnection(livekitUrl);
+}
+_prewarmLiveKit();
+
+async function _connectRoom(
+  room: Room,
+  tokenRes: { token: string; livekit_url: string },
+): Promise<void> {
+  const t1 = performance.now();
+
+  // Parallel: room.connect (WebSocket + SDP + ICE + DTLS) ‖ create audio track (getUserMedia)
+  const [, audioTrack] = await Promise.all([
+    room.connect(tokenRes.livekit_url, tokenRes.token),
+    createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true, autoGainControl: true }),
+  ]);
+  log(`room.connect: ${(performance.now() - t1).toFixed(0)}ms`, "info");
+
+  // Publish pre-created track — no second getUserMedia needed
+  const t2 = performance.now();
+  await room.localParticipant.publishTrack(audioTrack, { source: Track.Source.Microphone });
+  log(`publishTrack: ${(performance.now() - t2).toFixed(0)}ms`, "info");
+  micEnabled.value = true;
 }
 
 async function startVoice() {
   if (!voiceAgentId.value) { log("请选择 Agent", "warn"); return; }
   voiceState.value = "connecting";
+  const t0 = performance.now();
   log("发起语音对话...", "info");
   try {
-    // 1. Prepare Room + events immediately (sync)
-    const room = _prepareRoom();
+    // 1. Reuse pre-warmed Room (ICE + signal already established) or create fresh
+    const room = _prewarmedRoom || _prepareRoom();
+    _prewarmedRoom = null;
 
-    // 2. Parallel: API call + LiveKit pre-warm + mic permission
-    const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
-    if (livekitUrl) {
-      room.prepareConnection(livekitUrl);
-    }
-
-    const [res] = await Promise.all([
-      client.value!.agent.createVoiceSession(voiceAgentId.value, {
-        message: voiceInitMsg.value || "你好",
-        ...(voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : {}),
-        ...(userName.value ? { user_name: userName.value } : {}),
-        ...(userId.value ? { user_id: userId.value } : {}),
-      }),
-      _warmMicrophone(),
-    ]);
+    // 2. API call (mic already warmed at page load)
+    const res = await client.value!.agent.createVoiceSession(voiceAgentId.value, {
+      message: voiceInitMsg.value || "你好",
+      ...(voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : {}),
+      ...(userName.value ? { user_name: userName.value } : {}),
+      ...(userId.value ? { user_id: userId.value } : {}),
+    });
 
     voiceSessionId.value = res.session_id;
-    log(`Session: ${res.session_id} (显示名: "${userName.value || '未设置'}", user_id: "${userId.value || '未设置'}")`, "info");
+    log(`API response: ${(performance.now() - t0).toFixed(0)}ms — session: ${res.session_id}`, "info");
 
-    // 3. Connect — DNS/TLS already warm, mic permission cached
-    await room.connect(res.livekit_url, res.token);
-    await room.localParticipant.setMicrophoneEnabled(true);
-    micEnabled.value = true;
-
-    // Cache livekit_url for future preconnects
+    // 3. Connect + create audio track in parallel (fast if pre-warmed)
+    await _connectRoom(room, res);
+    log(`总耗时: ${(performance.now() - t0).toFixed(0)}ms`, "ok");
   } catch (err) {
     teardownRoom();
     logError(err);
@@ -452,32 +479,20 @@ async function startVoice() {
 async function joinVoice() {
   if (!joinSessionId.value.trim()) { log("请输入要加入的 session_id", "warn"); return; }
   voiceState.value = "connecting";
+  const t0 = performance.now();
   log("加入已有 Session...", "info");
   try {
-    // 1. Prepare Room + events immediately
-    const room = _prepareRoom();
+    const room = _prewarmedRoom || _prepareRoom();
+    _prewarmedRoom = null;
 
-    const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
-    if (livekitUrl) {
-      room.prepareConnection(livekitUrl);
-    }
-
-    // 2. Parallel: API call + mic permission
     const tokenData = (userName.value || userId.value) ? { ...(userName.value ? { user_name: userName.value } : {}), ...(userId.value ? { user_id: userId.value } : {}) } : undefined;
-    const [tokenRes] = await Promise.all([
-      client.value!.agent.sessions.join(joinSessionId.value, tokenData),
-      _warmMicrophone(),
-    ]);
+    const tokenRes = await client.value!.agent.sessions.join(joinSessionId.value, tokenData);
 
     voiceSessionId.value = joinSessionId.value;
-    log(`Token 获取成功，连接中... (显示名: "${userName.value || '未设置'}", user_id: "${userId.value || '未设置'}")`, "info");
+    log(`API response: ${(performance.now() - t0).toFixed(0)}ms`, "info");
 
-    // 3. Connect
-    await room.connect(tokenRes.livekit_url, tokenRes.token);
-    await room.localParticipant.setMicrophoneEnabled(true);
-    micEnabled.value = true;
-
-    (client.value as any)?.preconnect?.(tokenRes.livekit_url);
+    await _connectRoom(room, tokenRes);
+    log(`总耗时: ${(performance.now() - t0).toFixed(0)}ms`, "ok");
   } catch (err) {
     teardownRoom();
     logError(err);
@@ -497,7 +512,10 @@ async function stopVoice() {
   await _room.disconnect();
 }
 
-onUnmounted(() => { _room?.disconnect(); });
+onUnmounted(() => {
+  _room?.disconnect();
+  if (_prewarmedRoom) { _prewarmedRoom.removeAllListeners(); _prewarmedRoom = null; }
+});
 
 async function appendMessage() {
   if (!msgSessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
