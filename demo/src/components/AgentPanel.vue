@@ -268,9 +268,6 @@ function _prepareRoom(): Room {
   const room = new Room({
     adaptiveStream: true,
     audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    rtcConfig: {
-      iceServers: [],            // No STUN/TURN — pure LAN, host candidates only
-    },
   });
   _room = room;
 
@@ -368,15 +365,57 @@ async function _connectRoom(
 ): Promise<void> {
   _connectStart = performance.now();
 
+  // ── Hook into RTCPeerConnection events for fine-grained WebRTC timing ──
+  // We intercept RTCPeerConnection creation to attach state-change listeners
+  // BEFORE room.connect() starts the negotiation sequence.
+  const _origCreate = window.RTCPeerConnection;
+  const _cs = _connectStart;
+  const _log = log;
+  window.RTCPeerConnection = new Proxy(_origCreate, {
+    construct(target, args) {
+      const pc = new target(...args);
+      pc.addEventListener("signalingstatechange", () => {
+        _log(`  → PC signaling: ${pc.signalingState} @ ${(performance.now() - _cs).toFixed(0)}ms`, "info");
+      });
+      pc.addEventListener("iceconnectionstatechange", () => {
+        _log(`  → PC ice: ${pc.iceConnectionState} @ ${(performance.now() - _cs).toFixed(0)}ms`, "info");
+      });
+      pc.addEventListener("icegatheringstatechange", () => {
+        _log(`  → PC iceGathering: ${pc.iceGatheringState} @ ${(performance.now() - _cs).toFixed(0)}ms`, "info");
+      });
+      pc.addEventListener("connectionstatechange", () => {
+        _log(`  → PC connection: ${pc.connectionState} @ ${(performance.now() - _cs).toFixed(0)}ms`, "info");
+      });
+      return pc;
+    },
+  }) as any;
+
   // Parallel: room.connect (WebSocket + SDP + ICE + DTLS) ‖ create audio track (getUserMedia)
   // 分别计时以定位瓶颈
   const connectPromise = room.connect(tokenRes.livekit_url, tokenRes.token, {
-    rtcConfig: {
-      iceServers: [],            // No STUN/TURN — pure LAN, host candidates only
-    },
     peerConnectionTimeout: 5_000, // LAN should connect in <1s, fail fast
   })
-    .then(() => log(`  → room.connect 完成: ${(performance.now() - _connectStart).toFixed(0)}ms`, "info"));
+    .then(async () => {
+      log(`  → room.connect 完成: ${(performance.now() - _connectStart).toFixed(0)}ms`, "info");
+      // Dump WebRTC transport stats for post-hoc analysis
+      try {
+        const pc = (room as any).engine?.pcManager?.publisher?.pc as RTCPeerConnection | undefined;
+        if (pc) {
+          const stats = await pc.getStats();
+          stats.forEach((report) => {
+            if (report.type === "candidate-pair" && report.nominated) {
+              log(`  → ICE pair: rtt=${report.currentRoundTripTime ? (report.currentRoundTripTime * 1000).toFixed(0) + "ms" : "N/A"} local=${report.localCandidateId} remote=${report.remoteCandidateId}`, "info");
+            }
+            if (report.type === "transport") {
+              log(`  → DTLS: state=${report.dtlsState} tlsVersion=${report.tlsVersion ?? "N/A"} selectedPair=${report.selectedCandidatePairId ?? "N/A"}`, "info");
+            }
+          });
+        }
+      } catch { /* stats not critical */ }
+    });
+
+  // Restore original RTCPeerConnection after proxy is consumed
+  window.RTCPeerConnection = _origCreate;
 
   const audioPromise = createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true, autoGainControl: true })
     .then(track => {
@@ -401,10 +440,14 @@ async function startVoice() {
   log("发起语音对话...", "info");
   try {
     // 1. Reuse pre-warmed Room (ICE + signal already established) or create fresh
+    const wasPrewarmed = !!_prewarmedRoom;
+    const tRoom = performance.now();
     const room = _prewarmedRoom || _prepareRoom();
     _prewarmedRoom = null;
+    log(`  prepareRoom: ${(performance.now() - tRoom).toFixed(0)}ms (prewarmed=${wasPrewarmed})`, "info");
 
     // 2. API call (mic already warmed at page load)
+    const tApi = performance.now();
     const res = await client.value!.agent.createVoiceSession(voiceAgentId.value, {
       message: voiceInitMsg.value || "你好",
       ...(voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : {}),
@@ -414,7 +457,7 @@ async function startVoice() {
 
     voiceSessionId.value = res.session_id;
     voiceSessionInfo.value = res;
-    log(`API response: ${(performance.now() - t0).toFixed(0)}ms — session: ${res.session_id}`, "info");
+    log(`API response: ${(performance.now() - tApi).toFixed(0)}ms — session: ${res.session_id}`, "info");
 
     // 3. Connect + create audio track in parallel (fast if pre-warmed)
     await _connectRoom(room, res);
