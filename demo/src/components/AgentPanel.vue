@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
+import { ref, watch, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, SessionResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse } from "@audarai/sdk";
-import { Room, RoomEvent, Track, createLocalAudioTrack, type TranscriptionSegment, type Participant } from "livekit-client";
+import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse } from "@audarai/sdk";
+import { Room, RoomEvent, Track, createLocalAudioTrack, setLogLevel, LogLevel, LoggerNames, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();
@@ -187,86 +187,6 @@ async function deleteAgent(id: string) {
     await client.value!.agent.deleteAgent(id);
     agents.value = agents.value.filter(a => a.id !== id);
     log("删除成功", "ok");
-    if (chatAgentId.value === id) chatAgentId.value = "";
-  } catch (err) {
-    logError(err);
-  }
-}
-
-// ── Card 2: Chat ───────────────────────────────────────────────────────────────
-const chatAgentId = ref("");
-const chatMessage = ref("你好");
-const chatVoiceId = ref("");
-const chatSessionId = ref("");
-const chatRoomId = ref("");
-const livekitToken = ref<Record<string, unknown> | null>(null);
-
-async function startChat() {
-  if (!chatAgentId.value) { log("请选择 Agent", "warn"); return; }
-  if (!chatMessage.value.trim()) { log("请输入消息", "warn"); return; }
-  log(`发起 Chat (agent=${chatAgentId.value})...`, "info");
-  try {
-    const res = await client.value!.agent.createVoiceSession(chatAgentId.value, {
-      message: chatMessage.value,
-      ...(chatVoiceId.value ? { voice_id: chatVoiceId.value } : {}),
-      ...(userName.value ? { user_name: userName.value } : {}),
-      ...(userId.value ? { user_id: userId.value } : {}),
-    });
-    chatSessionId.value = res.session_id;
-    chatRoomId.value = res.room_id;
-    sessionId.value = res.session_id;
-    msgSessionId.value = res.session_id;
-    livekitToken.value = res as unknown as Record<string, unknown>;
-    log(`Chat 成功 — session_id: ${res.session_id}`, "ok");
-    await loadMessages();
-  } catch (err) {
-    logError(err);
-  }
-}
-
-// ── Card 3: Session 管理 ───────────────────────────────────────────────────────
-const sessionId = ref("");
-const sessionDetail = ref<SessionResponse | null>(null);
-
-async function getSession() {
-  if (!sessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
-  log(`获取 Session 详情: ${sessionId.value}...`, "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.get(sessionId.value);
-    log(`状态: ${sessionDetail.value.status}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
-
-async function pauseSession() {
-  if (!sessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
-  log("暂停 Session...", "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.pause(sessionId.value);
-    log(`状态已更新: ${sessionDetail.value.status}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
-
-async function resumeSession() {
-  if (!sessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
-  log("恢复 Session...", "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.resume(sessionId.value);
-    log(`状态已更新: ${sessionDetail.value.status}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
-
-async function endSession() {
-  if (!sessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
-  log("结束 Session...", "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.end(sessionId.value);
-    log(`状态已更新: ${sessionDetail.value.status}`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -275,10 +195,6 @@ async function endSession() {
 // ── Card 4: 消息记录 ────────────────────────────────────────────────────────────
 const msgSessionId = ref("");
 const messages = ref<MessageResponse[]>([]);
-const appendRole = ref("user");
-const appendContent = ref("");
-const appendSpeakerType = ref("");
-const appendSpeakerRefId = ref("");
 
 async function loadMessages() {
   if (!msgSessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
@@ -310,6 +226,7 @@ function randomizeUser() {
 }
 const voiceState         = ref<VoiceState>("idle");
 const voiceSessionId     = ref("");
+const voiceSessionInfo   = ref<VoiceSessionResponse | null>(null);
 const joinSessionId      = ref("");
 const micEnabled         = ref(true);
 const speakingIdentities = ref<string[]>([]);
@@ -333,16 +250,36 @@ function teardownRoom() {
   speakingIdentities.value = [];
   localIdentity.value = "";
   lkParticipants.value = [];
+  voiceSessionInfo.value = null;
   voiceState.value = "idle";
+  // 断开后自动为下次通话预热
+  if (_cachedLivekitUrl) _prewarmLiveKit(_cachedLivekitUrl);
 }
+
+// ── LiveKit debug 日志：在浏览器 Console 查看连接各阶段详情 ──────────────
+setLogLevel(LogLevel.debug, LoggerNames.Signal);
+setLogLevel(LogLevel.debug, LoggerNames.Engine);
+setLogLevel(LogLevel.debug, LoggerNames.PCTransport);
+
+let _connectStart = 0;
 
 /** Create Room + attach all event listeners (sync, no I/O). */
 function _prepareRoom(): Room {
   const room = new Room({
     adaptiveStream: true,
     audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    rtcConfig: {
+      iceServers: [],            // No STUN/TURN — pure LAN, host candidates only
+    },
   });
   _room = room;
+
+  room.on(RoomEvent.SignalConnected, () => {
+    if (_connectStart) log(`  → SignalConnected: ${(performance.now() - _connectStart).toFixed(0)}ms`, "info");
+  });
+  room.on(RoomEvent.ConnectionStateChanged, (state) => {
+    if (_connectStart) log(`  → ConnectionState: ${state} @ ${(performance.now() - _connectStart).toFixed(0)}ms`, "info");
+  });
 
   room.on(RoomEvent.Connected, () => {
     voiceState.value = "connected";
@@ -414,9 +351,8 @@ function _warmMicrophone(): Promise<void> {
 // Fire immediately — browser caches the grant for all subsequent getUserMedia calls
 _warmMicrophone();
 
-// ── LiveKit pre-warm: pre-create Room + signal connection at page load ─────
-// This runs ICE gathering + WebSocket signal setup in the background so that
-// room.connect() later only needs to exchange the join message (~200ms vs ~2s).
+// ── LiveKit pre-warm: pre-create Room + signal connection ─────────────────
+// prepareConnection 提前建立 WebSocket 信令 + ICE 收集，后续 room.connect 只需交换 join (~200ms)
 let _prewarmedRoom: Room | null = null;
 function _prewarmLiveKit(): void {
   const livekitUrl = (client.value as any)?.livekitUrl as string | undefined;
@@ -430,14 +366,26 @@ async function _connectRoom(
   room: Room,
   tokenRes: { token: string; livekit_url: string },
 ): Promise<void> {
-  const t1 = performance.now();
+  _connectStart = performance.now();
 
   // Parallel: room.connect (WebSocket + SDP + ICE + DTLS) ‖ create audio track (getUserMedia)
-  const [, audioTrack] = await Promise.all([
-    room.connect(tokenRes.livekit_url, tokenRes.token),
-    createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true, autoGainControl: true }),
-  ]);
-  log(`room.connect: ${(performance.now() - t1).toFixed(0)}ms`, "info");
+  // 分别计时以定位瓶颈
+  const connectPromise = room.connect(tokenRes.livekit_url, tokenRes.token, {
+    rtcConfig: {
+      iceServers: [],            // No STUN/TURN — pure LAN, host candidates only
+    },
+    peerConnectionTimeout: 5_000, // LAN should connect in <1s, fail fast
+  })
+    .then(() => log(`  → room.connect 完成: ${(performance.now() - _connectStart).toFixed(0)}ms`, "info"));
+
+  const audioPromise = createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true, autoGainControl: true })
+    .then(track => {
+      log(`  → createLocalAudioTrack 完成: ${(performance.now() - _connectStart).toFixed(0)}ms`, "info");
+      return track;
+    });
+
+  const [, audioTrack] = await Promise.all([connectPromise, audioPromise]);
+  log(`room.connect 总计 (parallel): ${(performance.now() - _connectStart).toFixed(0)}ms`, "info");
 
   // Publish pre-created track — no second getUserMedia needed
   const t2 = performance.now();
@@ -465,6 +413,7 @@ async function startVoice() {
     });
 
     voiceSessionId.value = res.session_id;
+    voiceSessionInfo.value = res;
     log(`API response: ${(performance.now() - t0).toFixed(0)}ms — session: ${res.session_id}`, "info");
 
     // 3. Connect + create audio track in parallel (fast if pre-warmed)
@@ -517,24 +466,6 @@ onUnmounted(() => {
   if (_prewarmedRoom) { _prewarmedRoom.removeAllListeners(); _prewarmedRoom = null; }
 });
 
-async function appendMessage() {
-  if (!msgSessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
-  if (!appendContent.value.trim()) { log("请输入消息内容", "warn"); return; }
-  log("追加消息...", "info");
-  try {
-    const msg = await client.value!.agent.sessions.appendMessage(msgSessionId.value, {
-      role: appendRole.value || undefined,
-      content: appendContent.value,
-      speaker_type: appendSpeakerType.value || undefined,
-      speaker_ref_id: appendSpeakerRefId.value || undefined,
-    });
-    messages.value.push(msg);
-    appendContent.value = "";
-    log(`消息已追加: ${msg.id}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
 </script>
 
 <template>
@@ -769,69 +700,6 @@ async function appendMessage() {
       </div>
     </div>
 
-    <!-- Card 2: Chat -->
-    <div class="card">
-      <h3>Chat（快速发起会话）</h3>
-      <div class="row">
-        <div class="field">
-          <label>选择 Agent</label>
-          <select v-model="chatAgentId">
-            <option value="">— 请先获取列表 —</option>
-            <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
-          </select>
-        </div>
-        <div class="field" style="flex:2">
-          <label>消息</label>
-          <input v-model="chatMessage" type="text" placeholder="你好" />
-        </div>
-        <div class="field">
-          <label>voice_id（可选覆盖）</label>
-          <select v-model="chatVoiceId">
-            <option value="">— 使用 Agent 默认 —</option>
-            <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
-          </select>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" @click="startChat">发起 Chat</button>
-      </div>
-
-      <div v-if="chatSessionId" class="result-box">
-        <div><strong>session_id:</strong> {{ chatSessionId }}</div>
-        <div><strong>room_id:</strong> {{ chatRoomId }}</div>
-      </div>
-
-      <div v-if="livekitToken" class="result-box">
-        <pre>{{ JSON.stringify(livekitToken, null, 2) }}</pre>
-      </div>
-
-      <LogBox :entries="entries" />
-    </div>
-
-    <!-- Card 3: Session 管理 -->
-    <div class="card">
-      <h3>Session 管理</h3>
-      <div class="row">
-        <div class="field" style="flex:3">
-          <label>session_id</label>
-          <input v-model="sessionId" type="text" placeholder="从 Chat 自动填入，或手动输入" />
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-outline" @click="getSession">获取详情</button>
-        <button class="btn btn-outline" @click="pauseSession">暂停</button>
-        <button class="btn btn-outline" @click="resumeSession">恢复</button>
-        <button class="btn btn-danger"  @click="endSession">结束</button>
-      </div>
-
-      <div v-if="sessionDetail" class="result-box">
-        <div><strong>id:</strong> {{ sessionDetail.id }}</div>
-        <div><strong>room_id:</strong> {{ sessionDetail.room_id }}</div>
-        <div><strong>status:</strong> <span :class="`status-${sessionDetail.status}`">{{ sessionDetail.status }}</span></div>
-        <div><strong>created_at:</strong> {{ new Date(sessionDetail.created_at).toLocaleString() }}</div>
-      </div>
-    </div>
-
     <!-- Card 5: 语音对话 -->
     <div class="card">
       <h3>语音对话</h3>
@@ -871,6 +739,13 @@ async function appendMessage() {
         <span class="voice-dot" />
         <span>{{ { idle: "未连接", connecting: "连接中…", connected: "已连接", disconnecting: "断开中…" }[voiceState] }}</span>
         <span v-if="voiceSessionId && voiceState !== 'idle'" class="voice-sid">{{ voiceSessionId.slice(0, 8) }}…</span>
+      </div>
+
+      <div v-if="voiceSessionInfo && voiceState !== 'idle'" class="session-info">
+        <div><strong>session_id:</strong> <span class="mono">{{ voiceSessionInfo.session_id }}</span></div>
+        <div><strong>room_id:</strong> <span class="mono">{{ voiceSessionInfo.room_id }}</span></div>
+        <div><strong>room_name:</strong> <span class="mono">{{ voiceSessionInfo.room_name }}</span></div>
+        <div><strong>livekit_url:</strong> <span class="mono">{{ voiceSessionInfo.livekit_url }}</span></div>
       </div>
 
       <div v-if="voiceState === 'connected'" class="speakers-row">
@@ -952,34 +827,9 @@ async function appendMessage() {
         </div>
       </div>
 
-      <div class="sub-section">
-        <h4>追加消息</h4>
-        <div class="row">
-          <div class="field">
-            <label>role（可选）</label>
-            <select v-model="appendRole">
-              <option value="">—</option>
-              <option value="user">user</option>
-              <option value="assistant">assistant</option>
-              <option value="system">system</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>speaker_type（可选）</label>
-            <input v-model="appendSpeakerType" type="text" placeholder="human / agent / system" />
-          </div>
-          <div class="field">
-            <label>speaker_ref_id（可选）</label>
-            <input v-model="appendSpeakerRefId" type="text" placeholder="Agent UUID 等" />
-          </div>
-        </div>
-        <div class="field">
-          <label>content</label>
-          <textarea v-model="appendContent" rows="2" placeholder="消息内容" />
-        </div>
-        <button class="btn btn-primary" @click="appendMessage">追加消息</button>
-      </div>
     </div>
+
+    <LogBox :entries="entries" />
   </div>
 </template>
 
@@ -1032,20 +882,6 @@ async function appendMessage() {
   font-size: 0.9rem;
   color: var(--text-muted, #6b7280);
 }
-.result-box {
-  margin-top: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: var(--bg-alt, #f8fafc);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  line-height: 1.8;
-}
-.result-box pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  font-size: 0.8rem;
-}
 .btn-sm {
   padding: 0.2rem 0.55rem;
   font-size: 0.78rem;
@@ -1087,10 +923,22 @@ async function appendMessage() {
   color: var(--text-muted, #9ca3af);
   white-space: nowrap;
 }
-.status-active   { color: #16a34a; font-weight: 600; }
-.status-paused   { color: #d97706; font-weight: 600; }
-.status-ended    { color: #6b7280; }
-.status-error    { color: #dc2626; font-weight: 600; }
+
+/* Session info */
+.session-info {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-alt, #f8fafc);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+.session-info .mono {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+  user-select: all;
+}
 
 /* Voice card */
 .voice-status {
