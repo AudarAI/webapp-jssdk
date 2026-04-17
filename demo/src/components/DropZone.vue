@@ -36,6 +36,6 @@ function onDrop(e: DragEvent) {
   >
     <input ref="inputRef" type="file" accept="audio/*" @change="onFileChange" />
     <span v-if="model">{{ model.name }}</span>
-    <span v-else>点击或拖拽音频文件</span>
+    <span v-else>Click or drag audio file</span>
   </div>
 </template>

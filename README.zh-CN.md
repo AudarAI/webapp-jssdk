@@ -95,7 +95,7 @@ import { createAudaraiClient } from '@audarai/sdk';
 
 // 1. 创建客户端
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_your_key_here',
 });
 
@@ -131,7 +131,7 @@ SDK 支持三种互斥的认证方式，必须且只能选择其中一种。
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_xxx',
 });
 ```
@@ -149,13 +149,13 @@ const client = createAudaraiClient({
 ```typescript
 // 静态字符串
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
 });
 
 // 动态函数（推荐，支持 token 刷新）
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   accessToken: async () => keycloakAdapter.token,
 });
 ```
@@ -166,7 +166,7 @@ const client = createAudaraiClient({
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   apiKey: 'ak_xxx',
 });
 ```
@@ -720,7 +720,7 @@ SDK 在每次请求前主动检查 token 是否即将过期（默认提前 30 �
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_xxx',
   refreshThresholdSeconds: 60,  // 提前 60 秒刷新（默认：30）
 });
@@ -738,7 +738,7 @@ Node.js 18+ 原生支持 `fetch`，无需任何额外配置。
 import fetch from 'node-fetch';
 
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   apiKey: 'ak_xxx',
   fetch: fetch as typeof globalThis.fetch,
 });

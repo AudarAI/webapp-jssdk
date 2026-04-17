@@ -13,19 +13,19 @@ const speakerNames  = ref<string[]>([]);
 
 async function listSpeakers() {
   clear();
-  log("获取声音列表...", "info");
+  log("Fetching speaker list...", "info");
   try {
     const list = await client.value!.tts.listSpeakers();
     console.log(list)
     speakerNames.value = list;
-    log(`共 ${speakerNames.value.length} 个声音`, "ok");
+    log(`Found ${speakerNames.value.length} speakers`, "ok");
   } catch (err) {
     logError(err);
   }
 }
 
 // ── Synthesize ────────────────────────────────────────────────────────────────
-const text          = ref("你好，这是 AudarAI 语音合成测试。");
+const text          = ref("Hello, this is an AudarAI TTS test.");
 const voice         = ref("");
 const model         = ref("tts-1");
 const format        = ref<"mp3" | "wav" | "opus" | "aac" | "flac" | "pcm">("mp3");
@@ -45,13 +45,13 @@ function buildOpts() {
 }
 
 async function synthesize() {
-  if (!text.value.trim()) { log("请输入文本", "warn"); return; }
+  if (!text.value.trim()) { log("Please enter text", "warn"); return; }
   clear();
   loading.value = true;
-  log("合成中...", "info");
+  log("Synthesizing...", "info");
   try {
     const buf = await client.value!.tts.synthesize(text.value, buildOpts());
-    log(`合成成功，大小: ${fmtSize(buf.byteLength)}`, "ok");
+    log(`Synthesis complete, size: ${fmtSize(buf.byteLength)}`, "ok");
     audioSrc.value = bufferToObjectUrl(buf, format.value);
     downloadBuffer(buf, `tts_output.${format.value}`, format.value);
   } catch (err) {
@@ -62,10 +62,10 @@ async function synthesize() {
 }
 
 async function synthesizeStream() {
-  if (!text.value.trim()) { log("请输入文本", "warn"); return; }
+  if (!text.value.trim()) { log("Please enter text", "warn"); return; }
   clear();
   loading.value = true;
-  log("流式合成中...", "info");
+  log("Streaming synthesis...", "info");
   try {
     const response = await client.value!.tts.synthesizeStream(text.value, buildOpts());
     const chunks: Uint8Array[] = [];
@@ -74,13 +74,13 @@ async function synthesizeStream() {
       const { done, value } = await reader.read();
       if (done) break;
       chunks.push(value);
-      log(`收到数据块 ${fmtSize(value.byteLength)}`, "info");
+      log(`Received chunk ${fmtSize(value.byteLength)}`, "info");
     }
     const total  = chunks.reduce((n, c) => n + c.byteLength, 0);
     const merged = new Uint8Array(total);
     let off = 0;
     for (const c of chunks) { merged.set(c, off); off += c.byteLength; }
-    log(`流式完成，总大小: ${fmtSize(total)}`, "ok");
+    log(`Stream complete, total size: ${fmtSize(total)}`, "ok");
     audioSrc.value = bufferToObjectUrl(merged.buffer, format.value);
   } catch (err) {
     logError(err);
@@ -94,9 +94,9 @@ async function synthesizeStream() {
   <div>
     <!-- Speakers -->
     <div class="card">
-      <h3>声音列表</h3>
+      <h3>Speaker List</h3>
       <div class="row">
-        <button class="btn btn-outline" @click="listSpeakers">获取声音列表</button>
+        <button class="btn btn-outline" @click="listSpeakers">Fetch Speakers</button>
       </div>
       <div v-if="speakerNames.length" class="speaker-grid">
         <span v-for="name in speakerNames" :key="name" class="speaker-chip">{{ name }}</span>
@@ -105,8 +105,8 @@ async function synthesizeStream() {
 
     <!-- Synthesize -->
     <div class="card">
-      <h3>合成</h3>
-      <textarea v-model="text" rows="3" placeholder="输入要合成的文字..." />
+      <h3>Synthesize</h3>
+      <textarea v-model="text" rows="3" placeholder="Enter text to synthesize..." />
 
       <div class="row">
         <div class="field">
@@ -139,8 +139,8 @@ async function synthesizeStream() {
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary" :disabled="loading" @click="synthesize">合成</button>
-        <button class="btn btn-outline" :disabled="loading" @click="synthesizeStream">流式合成</button>
+        <button class="btn btn-primary" :disabled="loading" @click="synthesize">Synthesize</button>
+        <button class="btn btn-outline" :disabled="loading" @click="synthesizeStream">Stream Synthesize</button>
       </div>
 
       <audio v-if="audioSrc" :src="audioSrc" controls class="audio-player" />

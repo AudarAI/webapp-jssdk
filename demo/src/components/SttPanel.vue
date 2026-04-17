@@ -187,7 +187,7 @@ function cleanup() {
   <div>
     <!-- File transcribe -->
     <div class="card">
-      <h3>文件转写</h3>
+      <h3>File Transcription</h3>
       <DropZone v-model="audioFile" />
       <div class="row">
         <div class="field">
@@ -200,8 +200,8 @@ function cleanup() {
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-primary" :disabled="loading" @click="transcribe">转写</button>
-        <button class="btn btn-outline" :disabled="loading" @click="transcribeStream">SSE 流式</button>
+        <button class="btn btn-primary" :disabled="loading" @click="transcribe">Transcribe</button>
+        <button class="btn btn-outline" :disabled="loading" @click="transcribeStream">SSE Stream</button>
       </div>
       <textarea v-if="result" :value="result" readonly rows="4" class="result-box" />
       <LogBox :entries="fileLog.entries.value" />
@@ -211,11 +211,11 @@ function cleanup() {
     <div class="card">
       <h3>
         <span class="ws-dot" :class="wsState" />
-        实时转写（WebSocket + 麦克风）— v2 协议
+        Real-time Transcription (WebSocket + Microphone) — v2
       </h3>
 
       <details class="proto-info">
-        <summary>协议握手流程</summary>
+        <summary>Protocol handshake</summary>
         <ul>
           <li>连接建立 → 服务端发 <code>ready</code> → SDK 自动回 <code>{"type":"start"}</code></li>
           <li>客户端持续发送 PCM 二进制帧（16kHz / 16-bit signed / mono LE）</li>
@@ -236,15 +236,15 @@ function cleanup() {
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary" :disabled="wsState !== 'idle'" @click="startWs">开始录音</button>
-        <button class="btn btn-danger"  :disabled="wsState === 'idle'"  @click="stopWs">停止</button>
+        <button class="btn btn-primary" :disabled="wsState !== 'idle'" @click="startWs">Start Recording</button>
+        <button class="btn btn-danger"  :disabled="wsState === 'idle'"  @click="stopWs">Stop</button>
       </div>
 
       <!-- 实时字幕 -->
       <div v-if="wsState === 'connected' || segmentLogs.length > 0" class="subtitle-box">
         <div v-for="(s, i) in segmentLogs" :key="i" class="subtitle-original">{{ s }}</div>
         <div v-if="partialText" class="partial-text">{{ partialText }}</div>
-        <div v-else-if="wsState === 'connected'" class="partial-text muted">等待语音输入...</div>
+        <div v-else-if="wsState === 'connected'" class="partial-text muted">Waiting for speech...</div>
       </div>
 
       <LogBox :entries="wsLog.entries.value" />

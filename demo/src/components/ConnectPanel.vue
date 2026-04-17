@@ -7,7 +7,7 @@ const emit = defineEmits<{ connected: [] }>();
 
 const { connect, connected } = useClient();
 
-const baseUrl      = ref("http://localhost:8004");
+const baseUrl      = ref("https://prod.audarai.com/apiv2");
 const authMode     = ref<"pk" | "accessToken" | "apiKey">("pk");
 const cred         = ref("pk_IHDQAHeZxu6uJ66FkvVor2qGAU-1e8bMuUDZ7i0PIK4");
 const refreshUrl   = ref("");
@@ -29,7 +29,7 @@ const credPlaceholder = computed(() => ({
 
 async function handleConnect() {
   if (!baseUrl.value.trim() || !cred.value.trim()) {
-    errMsg.value = "请填写完整配置";
+    errMsg.value = "Please fill in all required fields";
     return;
   }
   errMsg.value = "";
@@ -83,7 +83,7 @@ async function handleConnect() {
     </div>
 
     <div class="field">
-      <label>认证模式</label>
+      <label>Auth Mode</label>
       <select v-model="authMode" :disabled="connected">
         <option value="pk">Publishable Key</option>
         <option value="accessToken">Access Token (JWT)</option>
@@ -97,7 +97,7 @@ async function handleConnect() {
     </div>
 
     <div v-if="authMode === 'accessToken'" class="field">
-      <label>Token Refresh URL <span class="hint">（可选，用于 401 后自动刷新）</span></label>
+      <label>Token Refresh URL <span class="hint">(optional, auto-refresh on 401)</span></label>
       <input
         v-model="refreshUrl"
         type="text"
@@ -107,7 +107,7 @@ async function handleConnect() {
     </div>
 
     <div class="field">
-      <label>LiveKit URL <span class="hint">（可选，用于预连接优化，减少语音延迟）</span></label>
+      <label>LiveKit URL <span class="hint">(optional, pre-connect to reduce voice latency)</span></label>
       <input
         v-model="livekitUrl"
         type="text"
@@ -123,7 +123,7 @@ async function handleConnect() {
       :disabled="connected || loading"
       @click="handleConnect"
     >
-      {{ loading ? "连接中..." : connected ? "✓ 已连接" : "连接" }}
+      {{ loading ? "Connecting..." : connected ? "✓ Connected" : "Connect" }}
     </button>
   </div>
 </template>

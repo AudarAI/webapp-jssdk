@@ -8,31 +8,31 @@ import type { ArchetypeResponse } from "@audarai/sdk";
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();
 
-// ── Card 1: Archetype 列表 ─────────────────────────────────────────────────────
+// ── Card 1: Archetype List ─────────────────────────────────────────────────────
 const archetypes = ref<ArchetypeResponse[]>([]);
 
 async function listArchetypes() {
-  log("获取 Archetype 列表...", "info");
+  log("Fetching Archetype list...", "info");
   try {
     archetypes.value = await client.value!.archetype.list();
-    log(`共 ${archetypes.value.length} 个 Archetype`, "ok");
+    log(`Found ${archetypes.value.length} Archetype(s)`, "ok");
   } catch (err) {
     logError(err);
   }
 }
 
 async function deleteArchetype(id: string) {
-  log(`删除 Archetype: ${id}...`, "info");
+  log(`Deleting Archetype: ${id}...`, "info");
   try {
     await client.value!.archetype.delete(id);
     archetypes.value = archetypes.value.filter(a => a.id !== id);
-    log("删除成功", "ok");
+    log("Deleted successfully", "ok");
   } catch (err) {
     logError(err);
   }
 }
 
-// ── 编辑 Archetype ─────────────────────────────────────────────────────────────
+// ── Edit Archetype ─────────────────────────────────────────────────────────────
 const editingId = ref<string | null>(null);
 const editForm = ref({ name: "", description: "", base_prompt: "" });
 
@@ -47,7 +47,7 @@ function cancelEdit() {
 
 async function saveEdit() {
   if (!editingId.value) return;
-  log(`更新 Archetype: ${editingId.value}...`, "info");
+  log(`Updating Archetype: ${editingId.value}...`, "info");
   try {
     const updated = await client.value!.archetype.update(editingId.value, {
       name: editForm.value.name || undefined,
@@ -56,20 +56,20 @@ async function saveEdit() {
     });
     const idx = archetypes.value.findIndex(a => a.id === updated.id);
     if (idx >= 0) archetypes.value[idx] = updated;
-    log(`Archetype 更新成功: ${updated.id}`, "ok");
+    log(`Archetype updated successfully: ${updated.id}`, "ok");
     editingId.value = null;
   } catch (err) {
     logError(err);
   }
 }
 
-// ── Card 2: 创建 Archetype ─────────────────────────────────────────────────────
+// ── Card 2: Create Archetype ─────────────────────────────────────────────────────
 const newArchetype = ref({ name: "", description: "", base_prompt: "" });
 
 async function createArchetype() {
-  if (!newArchetype.value.name.trim()) { log("请填写 Archetype 名称", "warn"); return; }
+  if (!newArchetype.value.name.trim()) { log("Please enter archetype name", "warn"); return; }
 
-  log(`创建 Archetype: ${newArchetype.value.name}...`, "info");
+  log(`Creating Archetype: ${newArchetype.value.name}...`, "info");
   try {
     const created = await client.value!.archetype.create({
       name: newArchetype.value.name,
@@ -77,7 +77,7 @@ async function createArchetype() {
       base_prompt: newArchetype.value.base_prompt || undefined,
     });
     archetypes.value.push(created);
-    log(`Archetype 创建成功: ${created.id}`, "ok");
+    log(`Archetype created successfully: ${created.id}`, "ok");
     newArchetype.value = { name: "", description: "", base_prompt: "" };
   } catch (err) {
     logError(err);
@@ -87,22 +87,22 @@ async function createArchetype() {
 
 <template>
   <div>
-    <!-- Card 1: Archetype 列表 -->
+    <!-- Card 1: Archetype List -->
     <div class="card">
-      <h3>Archetype 列表</h3>
+      <h3>Archetype List</h3>
       <div class="btn-row">
-        <button class="btn btn-outline" @click="listArchetypes">刷新列表</button>
+        <button class="btn btn-outline" @click="listArchetypes">Refresh</button>
       </div>
 
       <table v-if="archetypes.length" class="archetype-table">
         <thead>
           <tr>
             <th>ID</th>
-            <th>名称</th>
-            <th>描述</th>
+            <th>Name</th>
+            <th>Description</th>
             <th>Base Prompt</th>
-            <th>创建时间</th>
-            <th>操作</th>
+            <th>Created At</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -113,24 +113,24 @@ async function createArchetype() {
             <td class="prompt-cell" :title="a.base_prompt">{{ a.base_prompt || "—" }}</td>
             <td>{{ new Date(a.created_at).toLocaleString() }}</td>
             <td class="action-cell">
-              <button class="btn btn-sm btn-outline" @click="startEdit(a)">编辑</button>
-              <button class="btn btn-sm btn-danger" @click="deleteArchetype(a.id)">删除</button>
+              <button class="btn btn-sm btn-outline" @click="startEdit(a)">Edit</button>
+              <button class="btn btn-sm btn-danger" @click="deleteArchetype(a.id)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
-      <p v-else class="empty-hint">暂无 Archetype，点击「刷新列表」加载。</p>
+      <p v-else class="empty-hint">No archetypes yet. Click Refresh to load.</p>
 
-      <!-- 编辑表单 -->
+      <!-- Edit form -->
       <div v-if="editingId" class="sub-section">
-        <h4>编辑 Archetype <span class="editing-id">{{ editingId.slice(0, 8) }}…</span></h4>
+        <h4>Edit Archetype <span class="editing-id">{{ editingId.slice(0, 8) }}…</span></h4>
         <div class="row">
           <div class="field">
-            <label>名称</label>
+            <label>Name</label>
             <input v-model="editForm.name" type="text" />
           </div>
           <div class="field">
-            <label>描述</label>
+            <label>Description</label>
             <input v-model="editForm.description" type="text" />
           </div>
         </div>
@@ -139,36 +139,36 @@ async function createArchetype() {
           <textarea v-model="editForm.base_prompt" rows="6" />
         </div>
         <div class="btn-row">
-          <button class="btn btn-primary" @click="saveEdit">保存</button>
-          <button class="btn btn-outline" @click="cancelEdit">取消</button>
+          <button class="btn btn-primary" @click="saveEdit">Save</button>
+          <button class="btn btn-outline" @click="cancelEdit">Cancel</button>
         </div>
       </div>
 
       <LogBox :entries="entries" />
     </div>
 
-    <!-- Card 2: 创建 Archetype -->
+    <!-- Card 2: Create Archetype -->
     <div class="card">
-      <h3>创建 Archetype</h3>
+      <h3>Create Archetype</h3>
 
       <div class="row">
         <div class="field">
-          <label>名称 *</label>
+          <label>Name *</label>
           <input v-model="newArchetype.name" type="text" placeholder="My Archetype" />
         </div>
         <div class="field">
-          <label>描述（可选）</label>
-          <input v-model="newArchetype.description" type="text" placeholder="原型用途说明" />
+          <label>Description (optional)</label>
+          <input v-model="newArchetype.description" type="text" placeholder="Describe the archetype purpose" />
         </div>
       </div>
 
       <div class="field">
-        <label>Base Prompt（注入 Agent 的基础系统提示词）</label>
-        <textarea v-model="newArchetype.base_prompt" rows="6" placeholder="你是一个专业的客服助手..." />
+        <label>Base Prompt (injected as agent system prompt)</label>
+        <textarea v-model="newArchetype.base_prompt" rows="6" placeholder="You are a professional customer service assistant..." />
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary" @click="createArchetype">创建 Archetype</button>
+        <button class="btn btn-primary" @click="createArchetype">Create Archetype</button>
       </div>
     </div>
   </div>

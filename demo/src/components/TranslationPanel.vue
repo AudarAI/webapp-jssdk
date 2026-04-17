@@ -273,12 +273,12 @@ function cleanup() {
   <div>
     <!-- File translate -->
     <div class="card">
-      <h3>文件翻译</h3>
+      <h3>File Translation</h3>
       <DropZone v-model="audioFile" />
       <div class="row">
         <div class="field">
           <label>source_lang</label>
-          <input v-model="srcLang" type="text" placeholder="自动检测" />
+          <input v-model="srcLang" type="text" placeholder="Auto-detect" />
         </div>
         <div class="field">
           <label>target_lang *</label>
@@ -287,8 +287,8 @@ function cleanup() {
         <div class="field">
           <label>tts_enabled</label>
           <select v-model="ttsEnabled">
-            <option :value="true">true（返回音频）</option>
-            <option :value="false">false（返回文字）</option>
+            <option :value="true">true (return audio)</option>
+            <option :value="false">false (return text)</option>
           </select>
         </div>
         <div class="field">
@@ -299,7 +299,7 @@ function cleanup() {
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-primary" :disabled="loading" @click="translate">翻译</button>
+        <button class="btn btn-primary" :disabled="loading" @click="translate">Translate</button>
       </div>
 
       <!-- Pipeline stage status bar -->
@@ -313,8 +313,8 @@ function cleanup() {
             passed:  fileStage === 'done' || (fileStage !== 'error' && ['stt','translating','tts','done'].indexOf(fileStage) > ['stt','translating','tts','done'].indexOf(s)),
             error:   fileStage === 'error',
           }"
-        >{{ { stt: '识别', translating: '翻译', tts: '合成', done: '完成' }[s] }}</span>
-        <span v-if="fileStage === 'error'" class="stage-step error active">失败</span>
+        >{{ { stt: 'STT', translating: 'Translating', tts: 'TTS', done: 'Done' }[s] }}</span>
+        <span v-if="fileStage === 'error'" class="stage-step error active">Failed</span>
       </div>
 
       <!-- Live STT / translation text -->
@@ -332,14 +332,14 @@ function cleanup() {
     <div class="card">
       <h3>
         <span class="ws-dot" :class="wsState" />
-        实时翻译（WebSocket + 麦克风）
+        Real-time Translation (WebSocket + Microphone)
         <span class="ws-state-label" :class="wsState">
-          {{ { idle: '', connecting: '连接中…', connected: '录音中' }[wsState] }}
+          {{ { idle: '', connecting: 'Connecting…', connected: 'Recording' }[wsState] }}
         </span>
       </h3>
 
       <details class="proto-info">
-        <summary>协议说明（STT → 翻译 → TTS 三级流水线）</summary>
+        <summary>Protocol (STT → Translation → TTS pipeline)</summary>
         <ul>
           <li>连接后服务端发 <code>ready</code>，此时开始录音</li>
           <li>静音 0.8s 或段落超 15s 时触发段落切割</li>
@@ -373,8 +373,8 @@ function cleanup() {
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary" :disabled="wsState !== 'idle'" @click="startWs">开始录音</button>
-        <button class="btn btn-danger"  :disabled="wsState === 'idle'"  @click="stopWs">停止</button>
+        <button class="btn btn-primary" :disabled="wsState !== 'idle'" @click="startWs">Start Recording</button>
+        <button class="btn btn-danger"  :disabled="wsState === 'idle'"  @click="stopWs">Stop</button>
       </div>
 
       <!-- Subtitle overlay -->
@@ -386,7 +386,7 @@ function cleanup() {
         </div>
         <!-- Live partial of the segment currently being spoken -->
         <div v-if="sttPartial" class="partial-text">{{ sttPartial }}</div>
-        <div v-else-if="wsState === 'connected'" class="partial-text muted">等待语音输入...</div>
+        <div v-else-if="wsState === 'connected'" class="partial-text muted">Waiting for speech...</div>
       </div>
 
       <!-- 段落完成后实时播放 -->
@@ -394,7 +394,7 @@ function cleanup() {
 
       <!-- Pipeline 完成后的完整合并音频 -->
       <div v-if="finalAudioSrc" style="margin-bottom:12px">
-        <div style="font-size:12px;color:#888;margin-bottom:4px">完整翻译音频</div>
+        <div style="font-size:12px;color:#888;margin-bottom:4px">Full translated audio</div>
         <audio :src="finalAudioSrc" controls class="audio-player" />
       </div>
 
