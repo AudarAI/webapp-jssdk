@@ -592,7 +592,7 @@ function _prepareRoom(): Room {
     const isLocal = participant?.identity === room.localParticipant.identity;
     const role = isLocal ? "user" : "agent";
     const speakerName = isLocal
-      ? (room.localParticipant.name || userName.value || "我")
+      ? (room.localParticipant.name || userName.value || "Me")
       : (lkParticipants.value.find(p => p.identity === participant?.identity)?.name || participant?.identity || "Agent");
     for (const seg of segments) {
       const idx = subtitleLines.value.findIndex(l => l.id === seg.id);
@@ -713,22 +713,22 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
     <div class="card">
       <h3>Rooms</h3>
       <div class="row">
-        <button class="btn btn-outline" @click="listRooms">获取 Room 列表</button>
-        <button class="btn btn-outline" @click="loadAgents">加载 Agent 列表</button>
+        <button class="btn btn-outline" @click="listRooms">Fetch Room List</button>
+        <button class="btn btn-outline" @click="loadAgents">Load Agent List</button>
       </div>
 
       <table v-if="rooms.length" class="room-table">
         <thead>
           <tr>
             <th>ID</th>
-            <th>名称</th>
-            <th>类型</th>
+            <th>Name</th>
+            <th>Type</th>
             <th>Visibility</th>
             <th>Talking Style</th>
             <th>Agents</th>
-            <th>状态</th>
-            <th>创建时间</th>
-            <th>操作</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -742,10 +742,10 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             <td><span :class="`status-${room.status}`">{{ room.status }}</span></td>
             <td>{{ new Date(room.created_at).toLocaleString() }}</td>
             <td>
-              <button class="btn btn-sm btn-outline" @click="startEditRoom(room)">编辑</button>
+              <button class="btn btn-sm btn-outline" @click="startEditRoom(room)">Edit</button>
               <button class="btn btn-sm btn-outline" @click="() => { agentMgmtRoomId = room.id; listRoomAgents(); }">Agents</button>
-              <button class="btn btn-sm btn-outline" @click="() => { startSessionRoomId = room.id; }">选为会话</button>
-              <button class="btn btn-sm btn-danger" @click="deleteRoom(room.id)">删除</button>
+              <button class="btn btn-sm btn-outline" @click="() => { startSessionRoomId = room.id; }">Select for Session</button>
+              <button class="btn btn-sm btn-danger" @click="deleteRoom(room.id)">Delete</button>
             </td>
           </tr>
         </tbody>
@@ -753,9 +753,9 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
       <!-- 编辑表单 -->
       <div v-if="editingRoomId" class="sub-section">
-        <h4>编辑 Room <span class="editing-id">{{ editingRoomId.slice(0, 8) }}…</span></h4>
+        <h4>Edit Room <span class="editing-id">{{ editingRoomId.slice(0, 8) }}…</span></h4>
         <div class="field">
-          <label>名称</label>
+          <label>Name</label>
           <input v-model="editRoomForm.name" type="text" />
         </div>
         <div class="field">
@@ -768,7 +768,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         </div>
         <div class="field">
           <label>pre_session_instructions</label>
-          <textarea v-model="editRoomForm.pre_session_instructions" rows="2" placeholder="每次 Session 启动前执行的指令（可选）" />
+          <textarea v-model="editRoomForm.pre_session_instructions" rows="2" placeholder="Instructions executed before each Session starts (optional)" />
         </div>
         <div class="row">
           <div class="field">
@@ -797,38 +797,38 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         <div class="row">
           <div class="field">
             <label>language</label>
-            <input v-model="editRoomForm.language" type="text" placeholder="zh / en（可选）" />
+            <input v-model="editRoomForm.language" type="text" placeholder="zh / en (optional)" />
           </div>
         </div>
         <div class="field">
           <label>speaking_rules</label>
-          <textarea v-model="editRoomForm.speaking_rules" rows="2" placeholder="自然语言规则，LLM 会自动解析为结构化 phases（可选）" />
+          <textarea v-model="editRoomForm.speaking_rules" rows="2" placeholder="Natural language rules; LLM will parse them into structured phases (optional)" />
           <button class="btn btn-sm btn-outline" style="margin-top:0.4rem"
                   :disabled="!editRoomForm.speaking_rules.trim()"
-                  @click="generatePhasesForEdit">LLM 生成 phases</button>
+                  @click="generatePhasesForEdit">Generate phases with LLM</button>
         </div>
         <div class="field">
           <div class="row" style="align-items:center;margin-bottom:0.4rem">
-            <label style="margin:0">phases（speaking_rules 优先）</label>
+            <label style="margin:0">phases (speaking_rules takes priority)</label>
             <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;margin:0 0 0 auto">
               <input v-model="editRoomForm.phase_loop" type="checkbox" />
               phase_loop
             </label>
           </div>
-          <div v-if="!editRoomForm.phases.length" class="empty-tip">暂无 phase，点击「添加」新建</div>
+          <div v-if="!editRoomForm.phases.length" class="empty-tip">No phases yet. Click "+ Add Phase" to create one.</div>
           <div v-for="(ph, i) in editRoomForm.phases" :key="i" class="phase-editor-card">
             <div class="phase-editor-header">
               <span class="phase-index">Phase {{ i + 1 }}</span>
               <div class="phase-editor-actions">
                 <button class="btn btn-sm btn-outline" :disabled="i === 0" @click="movePhaseUp(i)">↑</button>
                 <button class="btn btn-sm btn-outline" :disabled="i === editRoomForm.phases.length - 1" @click="movePhaseDown(i)">↓</button>
-                <button class="btn btn-sm btn-danger" @click="removePhase(i)">删除</button>
+                <button class="btn btn-sm btn-danger" @click="removePhase(i)">Delete</button>
               </div>
             </div>
             <div class="row" style="gap:0.5rem">
               <div class="field" style="flex:2">
                 <label>name</label>
-                <input v-model="ph.name" type="text" placeholder="phase 名称" />
+                <input v-model="ph.name" type="text" placeholder="phase name" />
               </div>
               <div class="field" style="flex:2">
                 <label>executor</label>
@@ -857,16 +857,16 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             </div>
             <div class="row" style="gap:0.5rem">
               <div class="field" style="flex:3">
-                <label>participants（可选，如 active_agents / agent:0）</label>
+                <label>participants (optional, e.g. active_agents / agent:0)</label>
                 <input v-model="ph.participants" type="text" placeholder="active_agents" />
               </div>
             </div>
             <div class="field">
               <label>prompt</label>
-              <textarea v-model="ph.prompt" rows="2" placeholder="此 phase 中 agent/router 使用的系统提示词" />
+              <textarea v-model="ph.prompt" rows="2" placeholder="System prompt for agent/router in this phase" />
             </div>
           </div>
-          <button class="btn btn-outline btn-sm" style="margin-top:0.4rem" @click="addPhase">+ 添加 Phase</button>
+          <button class="btn btn-outline btn-sm" style="margin-top:0.4rem" @click="addPhase">+ Add Phase</button>
         </div>
         <div class="field">
           <label>agent_ids</label>
@@ -874,22 +874,22 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             <div v-for="b in editRoomForm.agent_ids" :key="b.agent_id" class="binding-row">
               <span class="binding-name">{{ agentsList.find(a => a.id === b.agent_id)?.name ?? b.agent_id.slice(0, 8) + '…' }}</span>
               <span class="count-badge">×{{ b.count ?? 1 }}</span>
-              <button class="btn btn-sm btn-danger" @click="removeAgentFromEditRoom(b.agent_id)">移除</button>
+              <button class="btn btn-sm btn-danger" @click="removeAgentFromEditRoom(b.agent_id)">Remove</button>
             </div>
-            <div v-if="!editRoomForm.agent_ids.length" class="empty-tip">尚未添加 Agent</div>
+            <div v-if="!editRoomForm.agent_ids.length" class="empty-tip">No agents added yet</div>
           </div>
           <div class="row" style="margin-top:0.5rem">
             <div class="field" style="flex:3">
               <select v-model="editRoomAddAgentId">
-                <option value="">— 选择 Agent —</option>
+                <option value="">— Select Agent —</option>
                 <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
               </select>
             </div>
             <div class="field" style="flex:1">
-              <input v-model.number="editRoomAddAgentCount" type="number" min="1" placeholder="数量" />
+              <input v-model.number="editRoomAddAgentCount" type="number" min="1" placeholder="count" />
             </div>
             <div class="field" style="align-self:flex-end">
-              <button class="btn btn-outline" @click="addAgentToEditRoom">添加</button>
+              <button class="btn btn-outline" @click="addAgentToEditRoom">Add</button>
             </div>
           </div>
         </div>
@@ -898,27 +898,27 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <select v-model="editRoomForm.skill_ids" multiple class="multi-select">
             <option v-for="s in skillsList" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
-          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadSkills">加载 Skill 列表</a></span>
+          <span class="hint-text">Hold Ctrl / Cmd to multi-select · <a href="#" @click.prevent="loadSkills">Load Skill List</a></span>
         </div>
         <div class="field">
           <label>tool_ids</label>
           <select v-model="editRoomForm.tool_ids" multiple class="multi-select">
             <option v-for="t in toolsList" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
-          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadTools">加载 Tool 列表</a></span>
+          <span class="hint-text">Hold Ctrl / Cmd to multi-select · <a href="#" @click.prevent="loadTools">Load Tool List</a></span>
         </div>
         <div class="btn-row">
-          <button class="btn btn-primary" @click="saveEditRoom">保存</button>
-          <button class="btn btn-outline" @click="cancelEditRoom">取消</button>
+          <button class="btn btn-primary" @click="saveEditRoom">Save</button>
+          <button class="btn btn-outline" @click="cancelEditRoom">Cancel</button>
         </div>
       </div>
 
       <!-- 创建 Room -->
       <div class="sub-section">
-        <h4>创建 Room</h4>
+        <h4>Create Room</h4>
         <div class="row">
           <div class="field">
-            <label>名称 *</label>
+            <label>Name *</label>
             <input v-model="newRoom.name" type="text" placeholder="My Room" />
           </div>
           <div class="field">
@@ -928,15 +928,15 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         </div>
         <div class="field">
           <label>description</label>
-          <input v-model="newRoom.description" type="text" placeholder="可选描述" />
+          <input v-model="newRoom.description" type="text" placeholder="Optional description" />
         </div>
         <div class="field">
           <label>room_prompt</label>
-          <textarea v-model="newRoom.room_prompt" rows="2" placeholder="注入到此 Room 所有 Session 的系统提示（可选）" />
+          <textarea v-model="newRoom.room_prompt" rows="2" placeholder="System prompt injected into all Sessions in this Room (optional)" />
         </div>
         <div class="field">
           <label>pre_session_instructions</label>
-          <textarea v-model="newRoom.pre_session_instructions" rows="2" placeholder="每次 Session 启动前执行的指令（可选）" />
+          <textarea v-model="newRoom.pre_session_instructions" rows="2" placeholder="Instructions executed before each Session starts (optional)" />
         </div>
         <div class="row">
           <div class="field">
@@ -965,12 +965,12 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         <div class="row">
           <div class="field">
             <label>language</label>
-            <input v-model="newRoom.language" type="text" placeholder="zh / en（可选）" />
+            <input v-model="newRoom.language" type="text" placeholder="zh / en (optional)" />
           </div>
         </div>
         <div class="field">
           <label>speaking_rules</label>
-          <textarea v-model="newRoom.speaking_rules" rows="2" placeholder="自然语言规则，LLM 会自动解析为结构化 phases（可选）" />
+          <textarea v-model="newRoom.speaking_rules" rows="2" placeholder="Natural language rules; LLM will parse them into structured phases (optional)" />
         </div>
         <div class="field">
           <label>agent_ids</label>
@@ -978,22 +978,22 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             <div v-for="b in newRoom.agent_ids" :key="b.agent_id" class="binding-row">
               <span class="binding-name">{{ agentsList.find(a => a.id === b.agent_id)?.name ?? b.agent_id.slice(0, 8) + '…' }}</span>
               <span class="count-badge">×{{ b.count ?? 1 }}</span>
-              <button class="btn btn-sm btn-danger" @click="removeAgentFromNewRoom(b.agent_id)">移除</button>
+              <button class="btn btn-sm btn-danger" @click="removeAgentFromNewRoom(b.agent_id)">Remove</button>
             </div>
-            <div v-if="!newRoom.agent_ids.length" class="empty-tip">尚未添加 Agent</div>
+            <div v-if="!newRoom.agent_ids.length" class="empty-tip">No agents added yet</div>
           </div>
           <div class="row" style="margin-top:0.5rem">
             <div class="field" style="flex:3">
               <select v-model="newRoomAddAgentId">
-                <option value="">— 选择 Agent —</option>
+                <option value="">— Select Agent —</option>
                 <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
               </select>
             </div>
             <div class="field" style="flex:1">
-              <input v-model.number="newRoomAddAgentCount" type="number" min="1" placeholder="数量" />
+              <input v-model.number="newRoomAddAgentCount" type="number" min="1" placeholder="count" />
             </div>
             <div class="field" style="align-self:flex-end">
-              <button class="btn btn-outline" @click="addAgentToNewRoom">添加</button>
+              <button class="btn btn-outline" @click="addAgentToNewRoom">Add</button>
             </div>
           </div>
         </div>
@@ -1002,60 +1002,60 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <select v-model="newRoom.skill_ids" multiple class="multi-select">
             <option v-for="s in skillsList" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
-          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadSkills">加载 Skill 列表</a></span>
+          <span class="hint-text">Hold Ctrl / Cmd to multi-select · <a href="#" @click.prevent="loadSkills">Load Skill List</a></span>
         </div>
         <div class="field">
           <label>tool_ids</label>
           <select v-model="newRoom.tool_ids" multiple class="multi-select">
             <option v-for="t in toolsList" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
-          <span class="hint-text">按住 Ctrl / Cmd 多选 · <a href="#" @click.prevent="loadTools">加载 Tool 列表</a></span>
+          <span class="hint-text">Hold Ctrl / Cmd to multi-select · <a href="#" @click.prevent="loadTools">Load Tool List</a></span>
         </div>
-        <button class="btn btn-primary" @click="createRoom">创建 Room</button>
+        <button class="btn btn-primary" @click="createRoom">Create Room</button>
       </div>
     </div>
 
     <!-- Card 2: Room Agents 管理 -->
     <div class="card">
-      <h3>Room Agents 管理</h3>
+      <h3>Room Agent Management</h3>
       <div class="row">
         <div class="field">
-          <label>选择 Room</label>
+          <label>Select Room</label>
           <select v-model="agentMgmtRoomId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="listRoomAgents">查询 Agents</button>
+          <button class="btn btn-outline" @click="listRoomAgents">Query Agents</button>
         </div>
       </div>
 
       <div v-if="roomAgents" class="agent-list">
-        <div v-if="!roomAgents.agent_ids.length" class="empty-tip">暂无 Agent</div>
+        <div v-if="!roomAgents.agent_ids.length" class="empty-tip">No agents yet</div>
         <div v-for="aid in roomAgents.agent_ids" :key="aid.agent_id" class="agent-row">
           <span class="agent-id" :title="aid.agent_id">{{ aid.agent_id.slice(0, 8) }}… {{ aid.agent_id }}</span>
           <span v-if="aid.count && aid.count > 1" class="agent-count">×{{ aid.count }}</span>
-          <button class="btn btn-sm btn-danger" @click="removeRoomAgent(aid.agent_id)">移除</button>
+          <button class="btn btn-sm btn-danger" @click="removeRoomAgent(aid.agent_id)">Remove</button>
         </div>
       </div>
 
       <div class="sub-section">
-        <h4>添加 Agent</h4>
+        <h4>Add Agent</h4>
         <div class="row">
           <div class="field" style="flex:3">
-            <label>选择 Agent</label>
+            <label>Select Agent</label>
             <select v-model="addAgentId">
-              <option value="">— 请先加载 Agent 列表 —</option>
+              <option value="">— Load Agent list first —</option>
               <option v-for="a in agentsList" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
           </div>
           <div class="field" style="flex:1">
-            <label>数量</label>
+            <label>Count</label>
             <input v-model.number="addAgentCount" type="number" min="1" placeholder="1" />
           </div>
           <div class="field" style="align-self:flex-end">
-            <button class="btn btn-primary" @click="addRoomAgent">添加</button>
+            <button class="btn btn-primary" @click="addRoomAgent">Add</button>
           </div>
         </div>
       </div>
@@ -1063,17 +1063,17 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
     <!-- Card 3: 查询 Room 详情 -->
     <div class="card">
-      <h3>查询 Room 详情</h3>
+      <h3>Room Details</h3>
       <div class="row">
         <div class="field" style="flex:3">
-          <label>选择 Room</label>
+          <label>Select Room</label>
           <select v-model="getRoomId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="getRoom">查询</button>
+          <button class="btn btn-outline" @click="getRoom">Query</button>
         </div>
       </div>
       <div v-if="roomDetail" class="result-box">
@@ -1084,7 +1084,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
         <div><strong>visibility:</strong> {{ roomDetail.visibility }}</div>
         <div><strong>talking_style:</strong> {{ roomDetail.talking_style }}</div>
         <div v-if="roomDetail.speaking_rules"><strong>speaking_rules:</strong> {{ roomDetail.speaking_rules }}</div>
-        <div><strong>auto_start:</strong> {{ roomDetail.auto_start ? "✓ 是" : "✗ 否" }}</div>
+        <div><strong>auto_start:</strong> {{ roomDetail.auto_start ? "✓ Yes" : "✗ No" }}</div>
         <div><strong>language:</strong> {{ roomDetail.language || "—" }}</div>
         <div><strong>room_prompt:</strong> {{ roomDetail.room_prompt || "—" }}</div>
         <div v-if="roomDetail.pre_session_instructions"><strong>pre_session_instructions:</strong> {{ roomDetail.pre_session_instructions }}</div>
@@ -1102,7 +1102,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             </div>
           </div>
         </div>
-        <div v-if="roomDetail.phases?.length"><strong>phase_loop:</strong> {{ roomDetail.phase_loop ? "✓ 是" : "✗ 否" }}</div>
+        <div v-if="roomDetail.phases?.length"><strong>phase_loop:</strong> {{ roomDetail.phase_loop ? "✓ Yes" : "✗ No" }}</div>
         <div><strong>created_at:</strong> {{ new Date(roomDetail.created_at).toLocaleString() }}</div>
       </div>
 
@@ -1111,25 +1111,25 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
     <!-- Card 4: 在 Room 中创建 Session -->
     <div class="card">
-      <h3>创建 Session（在 Room 中）</h3>
+      <h3>Create Session (in Room)</h3>
       <div class="row">
         <div class="field">
-          <label>选择 Room</label>
+          <label>Select Room</label>
           <select v-model="startSessionRoomId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
         <div class="field">
-          <label>voice_id（可选覆盖）</label>
+          <label>voice_id (optional override)</label>
           <select v-model="startSessionVoiceId">
-            <option value="">— 使用 Agent 默认 —</option>
+            <option value="">— Use Agent default —</option>
             <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
           </select>
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="loadVoiceList">加载声音列表</button>
-          <button class="btn btn-primary" @click="startSession">创建 Session</button>
+          <button class="btn btn-outline" @click="loadVoiceList">Load Voice List</button>
+          <button class="btn btn-primary" @click="startSession">Create Session</button>
         </div>
       </div>
 
@@ -1143,12 +1143,12 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
     <!-- Card 4b: 全部 Session 列表（关联 Room + Agent） -->
     <div class="card">
-      <h3>全部 Session 列表</h3>
+      <h3>All Sessions</h3>
       <div class="row">
         <div class="field">
-          <label>状态筛选</label>
+          <label>Status Filter</label>
           <select v-model="sessionStatusFilter">
-            <option value="">全部</option>
+            <option value="">All</option>
             <option value="created">created</option>
             <option value="preparing">preparing</option>
             <option value="running">running</option>
@@ -1159,7 +1159,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           </select>
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="listAllSessions(1)">查询</button>
+          <button class="btn btn-outline" @click="listAllSessions(1)">Query</button>
         </div>
       </div>
 
@@ -1168,12 +1168,12 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
           <thead>
             <tr>
               <th>Session ID</th>
-              <th>状态</th>
+              <th>Status</th>
               <th>Room</th>
               <th>Talking Style</th>
               <th>Agents</th>
-              <th>创建时间</th>
-              <th>操作</th>
+              <th>Created At</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1198,74 +1198,74 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
               </td>
               <td>{{ new Date(s.created_at).toLocaleString() }}</td>
               <td>
-                <button class="btn btn-sm btn-outline" @click="sessionId = s.id">选用</button>
+                <button class="btn btn-sm btn-outline" @click="sessionId = s.id">Use</button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <!-- 分页 -->
+      <!-- Pagination -->
       <div v-if="sessionListRes && sessionListRes.total > sessionPageSize" class="pagination-row">
-        <button class="btn btn-sm btn-outline" :disabled="sessionPage <= 1" @click="listAllSessions(sessionPage - 1)">上一页</button>
-        <span class="page-info">{{ sessionPage }} / {{ Math.ceil(sessionListRes.total / sessionPageSize) }}（共 {{ sessionListRes.total }} 条）</span>
-        <button class="btn btn-sm btn-outline" :disabled="sessionPage * sessionPageSize >= sessionListRes.total" @click="listAllSessions(sessionPage + 1)">下一页</button>
+        <button class="btn btn-sm btn-outline" :disabled="sessionPage <= 1" @click="listAllSessions(sessionPage - 1)">Previous</button>
+        <span class="page-info">{{ sessionPage }} / {{ Math.ceil(sessionListRes.total / sessionPageSize) }} ({{ sessionListRes.total }} total)</span>
+        <button class="btn btn-sm btn-outline" :disabled="sessionPage * sessionPageSize >= sessionListRes.total" @click="listAllSessions(sessionPage + 1)">Next</button>
         <select v-model.number="sessionPageSize" @change="listAllSessions(1)" class="page-size-select">
-          <option :value="10">10 条/页</option>
-          <option :value="20">20 条/页</option>
-          <option :value="50">50 条/页</option>
+          <option :value="10">10/page</option>
+          <option :value="20">20/page</option>
+          <option :value="50">50/page</option>
         </select>
       </div>
-      <div v-if="!sessionListRes" class="empty-tip">暂无数据，或尚未查询</div>
+      <div v-if="!sessionListRes" class="empty-tip">No data yet, or query not run</div>
     </div>
 
     <!-- Card 4d: 查询指定 Room 的 Session 列表 -->
     <div class="card">
-      <h3>查询 Room Session 列表</h3>
+      <h3>Room Sessions</h3>
       <div class="row">
         <div class="field">
-          <label>选择 Room</label>
+          <label>Select Room</label>
           <select v-model="listSessionsRoomId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="listRoomSessions">查询</button>
+          <button class="btn btn-outline" @click="listRoomSessions">Query</button>
         </div>
       </div>
 
       <div v-if="roomSessions.length" class="table-wrap">
         <table class="room-table">
-          <thead><tr><th>ID</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>ID</th><th>Status</th><th>Created At</th><th>Actions</th></tr></thead>
           <tbody>
             <tr v-for="s in roomSessions" :key="s.id">
               <td class="mono">{{ s.id }}</td>
               <td><span :class="`status-${s.status}`">{{ s.status }}</span></td>
               <td>{{ new Date(s.created_at).toLocaleString() }}</td>
               <td>
-                <button class="btn btn-sm btn-outline" @click="sessionId = s.id">选用</button>
+                <button class="btn btn-sm btn-outline" @click="sessionId = s.id">Use</button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div v-else-if="listSessionsRoomId" class="empty-tip">暂无 Session，或尚未查询</div>
+      <div v-else-if="listSessionsRoomId" class="empty-tip">No sessions yet, or query not run</div>
     </div>
 
     <!-- Card 5: Session 生命周期 -->
     <div class="card">
-      <h3>Session 生命周期</h3>
+      <h3>Session Lifecycle</h3>
       <div class="row">
         <div class="field" style="flex:3">
           <label>session_id</label>
-          <input v-model="sessionId" type="text" placeholder="从上方创建后自动填入，或手动输入" />
+          <input v-model="sessionId" type="text" placeholder="Auto-filled after creating above, or enter manually" />
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-outline" @click="getSession">获取详情</button>
-        <button class="btn btn-outline" @click="pauseSession">暂停</button>
-        <button class="btn btn-outline" @click="resumeSession">恢复</button>
-        <button class="btn btn-danger"  @click="endSession">结束</button>
+        <button class="btn btn-outline" @click="getSession">Get Details</button>
+        <button class="btn btn-outline" @click="pauseSession">Pause</button>
+        <button class="btn btn-outline" @click="resumeSession">Resume</button>
+        <button class="btn btn-danger"  @click="endSession">End</button>
       </div>
 
       <div v-if="sessionDetail" class="result-box">
@@ -1277,27 +1277,27 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
       <div class="sub-section">
         <div class="row">
-          <h4 style="margin:0">会话成员</h4>
-          <button class="btn btn-sm btn-outline" @click="getParticipants">刷新</button>
+          <h4 style="margin:0">Session Members</h4>
+          <button class="btn btn-sm btn-outline" @click="getParticipants">Refresh</button>
         </div>
-        <div v-if="!participants.length" class="empty-tip">暂无成员</div>
+        <div v-if="!participants.length" class="empty-tip">No members</div>
         <div v-for="p in participants" :key="p.context_ref_id || p.ref_id" class="agent-row">
           <span class="role-badge">{{ p.type }}</span>
           <span v-if="p.slot !== undefined" class="agent-count">#{{ p.slot }}</span>
           <span class="agent-id">{{ participantDisplayName(p) }}</span>
           <span class="agent-id ref-id-muted" :title="p.ref_id">{{ p.ref_id.slice(0, 8) }}…</span>
-          <span v-if="p.context && !p.context.is_active" class="role-badge" style="background:#f5a623">离线</span>
+          <span v-if="p.context && !p.context.is_active" class="role-badge" style="background:#f5a623">Offline</span>
         </div>
       </div>
 
       <!-- 指定成员回复 -->
       <div class="sub-section" v-if="participants.some(p => p.type === 'agent')">
-        <h4>指定成员回复</h4>
+        <h4>Reply to Specific Member</h4>
         <div class="row">
           <div class="field">
-            <label>目标 Agent</label>
+            <label>Target Agent</label>
             <select v-model="replyTargetRefId">
-              <option value="">— 请选择 —</option>
+              <option value="">— Select —</option>
               <option v-for="p in participants.filter(p => p.type === 'agent')"
                       :key="p.context_ref_id || p.ref_id"
                       :value="p.ref_id">
@@ -1306,21 +1306,21 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             </select>
           </div>
         </div>
-        <p class="hint">触发指定 Agent 基于会话历史回复。</p>
-        <button class="btn btn-primary" :disabled="!replyTargetRefId" @click="replyToMember">指定回复</button>
+        <p class="hint">Triggers the specified Agent to reply based on session history.</p>
+        <button class="btn btn-primary" :disabled="!replyTargetRefId" @click="replyToMember">Reply to Member</button>
       </div>
     </div>
 
     <!-- Card 6: 消息记录 -->
     <div class="card">
-      <h3>消息记录</h3>
+      <h3>Messages</h3>
       <div class="row">
         <div class="field" style="flex:3">
           <label>session_id</label>
-          <input v-model="sessionId" type="text" placeholder="从上方创建后自动填入，或手动输入" />
+          <input v-model="sessionId" type="text" placeholder="Auto-filled after creating above, or enter manually" />
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="loadMessages">加载消息</button>
+          <button class="btn btn-outline" @click="loadMessages">Load Messages</button>
         </div>
       </div>
 
@@ -1335,10 +1335,10 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
       </div>
 
       <div class="sub-section">
-        <h4>追加消息</h4>
+        <h4>Append Message</h4>
         <div class="row">
           <div class="field">
-            <label>role（可选）</label>
+            <label>role (optional)</label>
             <select v-model="appendRole">
               <option value="">—</option>
               <option value="user">user</option>
@@ -1347,36 +1347,36 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
             </select>
           </div>
           <div class="field">
-            <label>speaker_type（可选）</label>
+            <label>speaker_type (optional)</label>
             <input v-model="appendSpeakerType" type="text" placeholder="human / agent / system" />
           </div>
           <div class="field">
-            <label>speaker_ref_id（可选）</label>
-            <input v-model="appendSpeakerRefId" type="text" placeholder="Agent UUID 等" />
+            <label>speaker_ref_id (optional)</label>
+            <input v-model="appendSpeakerRefId" type="text" placeholder="Agent UUID etc." />
           </div>
         </div>
         <div class="field">
           <label>content</label>
-          <textarea v-model="appendContent" rows="2" placeholder="消息内容" />
+          <textarea v-model="appendContent" rows="2" placeholder="Message content" />
         </div>
-        <button class="btn btn-primary" @click="appendMessage">追加消息</button>
+        <button class="btn btn-primary" @click="appendMessage">Append Message</button>
       </div>
 
     </div>
 
     <!-- Card 7: 语音对话 -->
     <div class="card">
-      <h3>语音对话</h3>
-      <p class="hint">支持多 Agent + 多用户同时加入同一 Session 进行实时语音对话。</p>
+      <h3>Voice Chat</h3>
+      <p class="hint">Multiple Agents and users can join the same Session for real-time voice conversation.</p>
 
       <div class="row" style="margin-bottom:0.5rem">
         <div class="field">
-          <label>我的显示名</label>
-          <input v-model="userName" type="text" placeholder="可选，其他成员可看到" :disabled="voiceState !== 'idle'" />
+          <label>Display name</label>
+          <input v-model="userName" type="text" placeholder="Optional, visible to other members" :disabled="voiceState !== 'idle'" />
         </div>
         <div class="field">
-          <label>我的用户 ID</label>
-          <input v-model="userId" type="text" placeholder="可选，作为 LiveKit identity" :disabled="voiceState !== 'idle'" />
+          <label>User ID</label>
+          <input v-model="userId" type="text" placeholder="Optional, used as LiveKit identity" :disabled="voiceState !== 'idle'" />
         </div>
       </div>
 
@@ -1384,20 +1384,20 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
       <div v-if="sessionId" class="share-row">
         <span class="share-label">Session ID:</span>
         <code class="share-id" :title="sessionId">{{ sessionId.slice(0, 16) }}…</code>
-        <button class="btn btn-sm btn-outline" @click="copySessionId">复制邀请 ID</button>
-        <span class="hint-text">其他用户可用此 ID 点击「加入已有 Session」</span>
+        <button class="btn btn-sm btn-outline" @click="copySessionId">Copy Session ID</button>
+        <span class="hint-text">Other users can join using this ID</span>
       </div>
 
       <div class="voice-status" :class="`vs-${voiceState}`">
         <span class="voice-dot" />
-        <span>{{ { idle: "未连接", connecting: "连接中…", connected: "已连接", disconnecting: "断开中…" }[voiceState] }}</span>
+        <span>{{ { idle: "Not connected", connecting: "Connecting…", connected: "Connected", disconnecting: "Disconnecting…" }[voiceState] }}</span>
         <span v-if="sessionId && voiceState !== 'idle'" class="voice-sid">{{ sessionId.slice(0, 8) }}…</span>
       </div>
 
       <!-- v2: participant pills with agent (🤖) / user (👤) distinction -->
       <div v-if="voiceState === 'connected'" class="speakers-row">
         <div class="speaker-pill" :class="{ speaking: speakingIdentities.includes(localIdentity) }">
-          {{ micEnabled ? '🎤' : '🔇' }} {{ userName || localIdentity || '我' }}
+          {{ micEnabled ? '🎤' : '🔇' }} {{ userName || localIdentity || 'Me' }}
         </div>
         <div
           v-for="p in lkParticipants"
@@ -1410,7 +1410,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
       </div>
 
       <div v-if="voiceState === 'connected'" class="subtitle-box">
-        <div v-if="!subtitleLines.length" class="subtitle-empty">等待字幕…</div>
+        <div v-if="!subtitleLines.length" class="subtitle-empty">Waiting for captions…</div>
         <div
           v-for="line in subtitleLines"
           :key="line.id"
@@ -1425,7 +1425,7 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
       <div v-if="dataMessages.length" class="data-msg-box">
         <div class="data-msg-header">
           <span>Data Channel</span>
-          <button class="btn btn-sm btn-outline" @click="dataMessages = []">清空</button>
+          <button class="btn btn-sm btn-outline" @click="dataMessages = []">Clear</button>
         </div>
         <div v-for="m in dataMessages" :key="m.id" class="data-msg-row">
           <span class="data-msg-from">{{ m.from }}</span>
@@ -1436,17 +1436,17 @@ onUnmounted(() => { _lkRoom?.disconnect(); });
 
       <div class="btn-row">
         <template v-if="voiceState === 'idle'">
-          <button class="btn btn-primary" @click="startVoice">📞 开始语音对话</button>
-          <button class="btn btn-outline" @click="joinVoice">🔗 加入已有 Session</button>
+          <button class="btn btn-primary" @click="startVoice">📞 Start Voice Chat</button>
+          <button class="btn btn-outline" @click="joinVoice">🔗 Join Existing Session</button>
         </template>
         <template v-else-if="voiceState === 'connected'">
           <button class="btn btn-outline" @click="toggleMic">
-            {{ micEnabled ? "🔇 静音" : "🎤 取消静音" }}
+            {{ micEnabled ? "🔇 Mute" : "🎤 Unmute" }}
           </button>
-          <button class="btn btn-danger" @click="stopVoice">📵 挂断</button>
+          <button class="btn btn-danger" @click="stopVoice">📵 Hang Up</button>
         </template>
         <button v-else class="btn btn-outline" disabled>
-          {{ voiceState === "connecting" ? "连接中…" : "断开中…" }}
+          {{ voiceState === "connecting" ? "Connecting…" : "Disconnecting…" }}
         </button>
       </div>
 

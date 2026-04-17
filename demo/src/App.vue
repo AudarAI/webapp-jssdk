@@ -18,36 +18,36 @@ type Panel = "tts" | "stt" | "translation" | "agent" | "knowledge" | "tool" | "s
 const activePanel = ref<Panel>("tts");
 
 const NAV: { key: Panel; label: string }[] = [
-  { key: "tts",         label: "🔊 TTS 语音合成"  },
-  { key: "stt",         label: "🎙️ STT 语音转写"  },
-  { key: "translation", label: "🌐 语音翻译"       },
-  { key: "agent",       label: "🤖 Agent 对话"     },
-  { key: "knowledge",   label: "📚 知识库"          },
-  { key: "tool",        label: "🔧 工具管理"        },
-  { key: "skill",       label: "⚡ 技能管理"        },
-  { key: "archetype",   label: "🧩 Archetype 管理"  },
-  { key: "room",        label: "🏠 Room & Session"  },
+  { key: "tts",         label: "🔊 Text-to-Speech"   },
+  { key: "stt",         label: "🎙️ Speech-to-Text"   },
+  { key: "translation", label: "🌐 Voice Translation" },
+  { key: "agent",       label: "🤖 Voice Agent"       },
+  { key: "knowledge",   label: "📚 Knowledge Base"    },
+  { key: "tool",        label: "🔧 Tools"             },
+  { key: "skill",       label: "⚡ Skills"             },
+  { key: "archetype",   label: "🧩 Archetypes"        },
+  { key: "room",        label: "🏠 Rooms & Sessions"  },
 ];
 
 const PANEL_TITLES: Record<Panel, string> = {
-  tts:         "🔊 TTS — 文字转语音",
-  stt:         "🎙️ STT — 语音转文字",
-  translation: "🌐 Translation — 语音翻译",
-  agent:       "🤖 Agent — 智能对话",
-  knowledge:   "📚 Knowledge — 知识库管理",
-  tool:        "🔧 Tools — 工具管理",
-  skill:       "⚡ Skill — 技能管理",
-  archetype:   "🧩 Archetype — 原型管理",
-  room:        "🏠 Room & Session — 房间与会话管理",
+  tts:         "🔊 TTS — Text-to-Speech",
+  stt:         "🎙️ STT — Speech-to-Text",
+  translation: "🌐 Translation — Voice Translation",
+  agent:       "🤖 Agent — Voice Agent",
+  knowledge:   "📚 Knowledge — Knowledge Base",
+  tool:        "🔧 Tools",
+  skill:       "⚡ Skills",
+  archetype:   "🧩 Archetypes",
+  room:        "🏠 Rooms & Sessions",
 };
 </script>
 
 <template>
   <header>
     <span class="logo">AudarAI JS SDK</span>
-    <span class="subtitle">交互测试面板</span>
+    <span class="subtitle">Interactive Test Panel</span>
     <span class="badge" :class="connected ? 'badge-ok' : 'badge-idle'">
-      {{ connected ? "✓ 已连接" : "未连接" }}
+      {{ connected ? "✓ Connected" : "Not Connected" }}
     </span>
   </header>
 
@@ -73,14 +73,14 @@ const PANEL_TITLES: Record<Panel, string> = {
     <main class="main">
       <template v-if="!connected">
         <div class="empty-state">
-          <p>请先在左侧填写配置并点击「连接」</p>
+          <p>Please configure and click Connect on the left panel first</p>
         </div>
       </template>
 
       <template v-else>
         <h2>{{ PANEL_TITLES[activePanel] }}</h2>
 
-        <!-- v-show 保留 DOM 状态，切换面板时不重置录音/日志 -->
+        <!-- v-show preserves DOM state so recordings/logs aren't reset on tab switch -->
         <TtsPanel         v-show="activePanel === 'tts'" />
         <SttPanel         v-show="activePanel === 'stt'" />
         <TranslationPanel v-show="activePanel === 'translation'" />

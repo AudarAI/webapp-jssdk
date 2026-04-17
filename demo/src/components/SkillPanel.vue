@@ -8,31 +8,31 @@ import type { SkillResponse } from "@audarai/sdk";
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();
 
-// ── Card 1: Skill 列表 ─────────────────────────────────────────────────────────
+// ── Card 1: Skill List ─────────────────────────────────────────────────────────
 const skills = ref<SkillResponse[]>([]);
 
 async function listSkills() {
-  log("获取 Skill 列表...", "info");
+  log("Fetching skill list...", "info");
   try {
     skills.value = await client.value!.skill.list();
-    log(`共 ${skills.value.length} 个 Skill`, "ok");
+    log(`Found ${skills.value.length} skills`, "ok");
   } catch (err) {
     logError(err);
   }
 }
 
 async function deleteSkill(id: string) {
-  log(`删除 Skill: ${id}...`, "info");
+  log(`Deleting Skill: ${id}...`, "info");
   try {
     await client.value!.skill.delete(id);
     skills.value = skills.value.filter(s => s.id !== id);
-    log("删除成功", "ok");
+    log("Deleted successfully", "ok");
   } catch (err) {
     logError(err);
   }
 }
 
-// ── 编辑 Skill ─────────────────────────────────────────────────────────────────
+// ── Edit Skill ─────────────────────────────────────────────────────────────────
 const editingId = ref<string | null>(null);
 const editForm = ref({ name: "", description: "", content: "", is_public: false });
 
@@ -47,7 +47,7 @@ function cancelEdit() {
 
 async function saveEdit() {
   if (!editingId.value) return;
-  log(`更新 Skill: ${editingId.value}...`, "info");
+  log(`Updating Skill: ${editingId.value}...`, "info");
   try {
     const updated = await client.value!.skill.update(editingId.value, {
       name: editForm.value.name || undefined,
@@ -57,21 +57,21 @@ async function saveEdit() {
     });
     const idx = skills.value.findIndex(s => s.id === updated.id);
     if (idx >= 0) skills.value[idx] = updated;
-    log(`Skill 更新成功: ${updated.id}`, "ok");
+    log(`Updated successfully: ${updated.id}`, "ok");
     editingId.value = null;
   } catch (err) {
     logError(err);
   }
 }
 
-// ── Card 2: 创建 Skill ─────────────────────────────────────────────────────────
+// ── Card 2: Create Skill ─────────────────────────────────────────────────────────
 const newSkill = ref({ name: "", description: "", content: "" });
 const isPublic = ref(false);
 
 async function createSkill() {
-  if (!newSkill.value.name.trim()) { log("请填写 Skill 名称", "warn"); return; }
+  if (!newSkill.value.name.trim()) { log("Please enter skill name", "warn"); return; }
 
-  log(`创建 Skill: ${newSkill.value.name}...`, "info");
+  log(`Creating Skill: ${newSkill.value.name}...`, "info");
   try {
     const created = await client.value!.skill.create({
       name: newSkill.value.name,
@@ -80,7 +80,7 @@ async function createSkill() {
       is_public: isPublic.value,
     });
     skills.value.push(created);
-    log(`Skill 创建成功: ${created.id}`, "ok");
+    log(`Created successfully: ${created.id}`, "ok");
     newSkill.value = { name: "", description: "", content: "" };
     isPublic.value = false;
   } catch (err) {
@@ -91,23 +91,23 @@ async function createSkill() {
 
 <template>
   <div>
-    <!-- Card 1: Skill 列表 -->
+    <!-- Card 1: Skill List -->
     <div class="card">
-      <h3>Skill 列表</h3>
+      <h3>Skill List</h3>
       <div class="btn-row">
-        <button class="btn btn-outline" @click="listSkills">刷新列表</button>
+        <button class="btn btn-outline" @click="listSkills">Refresh</button>
       </div>
 
       <table v-if="skills.length" class="skill-table">
         <thead>
           <tr>
             <th>ID</th>
-            <th>名称</th>
-            <th>描述</th>
-            <th>是否公开</th>
-            <th>状态</th>
-            <th>创建时间</th>
-            <th>操作</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Public</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -115,28 +115,28 @@ async function createSkill() {
             <td class="id-cell" :title="s.id">{{ s.id.slice(0, 8) }}…</td>
             <td>{{ s.name }}</td>
             <td class="desc-cell" :title="s.description">{{ s.description || "—" }}</td>
-            <td>{{ s.is_public ? "是" : "否" }}</td>
+            <td>{{ s.is_public ? "Yes" : "No" }}</td>
             <td>{{ s.status }}</td>
             <td>{{ new Date(s.created_at).toLocaleString() }}</td>
             <td class="action-cell">
-              <button class="btn btn-sm btn-outline" @click="startEdit(s)">编辑</button>
-              <button class="btn btn-sm btn-danger" @click="deleteSkill(s.id)">删除</button>
+              <button class="btn btn-sm btn-outline" @click="startEdit(s)">Edit</button>
+              <button class="btn btn-sm btn-danger" @click="deleteSkill(s.id)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
-      <p v-else class="empty-hint">暂无 Skill，点击「刷新列表」加载。</p>
+      <p v-else class="empty-hint">No skills yet. Click Refresh to load.</p>
 
-      <!-- 编辑表单 -->
+      <!-- Edit form -->
       <div v-if="editingId" class="sub-section">
-        <h4>编辑 Skill <span class="editing-id">{{ editingId.slice(0, 8) }}…</span></h4>
+        <h4>Edit Skill <span class="editing-id">{{ editingId.slice(0, 8) }}…</span></h4>
         <div class="row">
           <div class="field">
-            <label>名称</label>
+            <label>Name</label>
             <input v-model="editForm.name" type="text" />
           </div>
           <div class="field">
-            <label>描述</label>
+            <label>Description</label>
             <input v-model="editForm.description" type="text" />
           </div>
         </div>
@@ -147,47 +147,47 @@ async function createSkill() {
         <div class="field checkbox-field">
           <label>
             <input v-model="editForm.is_public" type="checkbox" />
-            是否公开（is_public）
+            Public (is_public)
           </label>
         </div>
         <div class="btn-row">
-          <button class="btn btn-primary" @click="saveEdit">保存</button>
-          <button class="btn btn-outline" @click="cancelEdit">取消</button>
+          <button class="btn btn-primary" @click="saveEdit">Save</button>
+          <button class="btn btn-outline" @click="cancelEdit">Cancel</button>
         </div>
       </div>
 
       <LogBox :entries="entries" />
     </div>
 
-    <!-- Card 2: 创建 Skill -->
+    <!-- Card 2: Create Skill -->
     <div class="card">
-      <h3>创建 Skill</h3>
+      <h3>Create Skill</h3>
 
       <div class="row">
         <div class="field">
-          <label>名称 *</label>
+          <label>Name *</label>
           <input v-model="newSkill.name" type="text" placeholder="My Skill" />
         </div>
         <div class="field">
-          <label>描述（可选）</label>
-          <input v-model="newSkill.description" type="text" placeholder="技能用途说明" />
+          <label>Description (optional)</label>
+          <input v-model="newSkill.description" type="text" placeholder="Describe the skill purpose" />
         </div>
       </div>
 
       <div class="field">
-        <label>Content（注入 Agent system prompt 的 Markdown 内容）</label>
-        <textarea v-model="newSkill.content" rows="6" placeholder="## 技能说明&#10;&#10;描述此技能的行为规则..." />
+        <label>Content (Markdown injected into agent system prompt)</label>
+        <textarea v-model="newSkill.content" rows="6" placeholder="## Skill Description&#10;&#10;Describe behavior rules..." />
       </div>
 
       <div class="field checkbox-field">
         <label>
           <input v-model="isPublic" type="checkbox" />
-          是否公开（is_public）
+          Public (is_public)
         </label>
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary" @click="createSkill">创建 Skill</button>
+        <button class="btn btn-primary" @click="createSkill">Create Skill</button>
       </div>
     </div>
   </div>

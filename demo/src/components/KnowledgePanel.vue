@@ -19,18 +19,18 @@ const selectedId = ref("");
 const newKnowledge = ref({ name: "", description: "", source_uri: "", collection: "" });
 
 async function listKnowledge() {
-  log("获取知识库列表...", "info");
+  log("Fetching knowledge bases...", "info");
   try {
     knowledgeBases.value = await client.value!.knowledge.list();
-    log(`共 ${knowledgeBases.value.length} 个知识库`, "ok");
+    log(`Found ${knowledgeBases.value.length} knowledge bases`, "ok");
   } catch (err) {
     logError(err);
   }
 }
 
 async function createKnowledge() {
-  if (!newKnowledge.value.name.trim()) { log("请填写知识库名称", "warn"); return; }
-  log(`创建知识库: ${newKnowledge.value.name}...`, "info");
+  if (!newKnowledge.value.name.trim()) { log("Please enter knowledge base name", "warn"); return; }
+  log(`Create Knowledge Base: ${newKnowledge.value.name}...`, "info");
   try {
     const created = await client.value!.knowledge.create({
       name: newKnowledge.value.name,
@@ -43,7 +43,7 @@ async function createKnowledge() {
     ingestKbId.value = created.id;
     docsKbId.value = created.id;
     searchKbId.value = created.id;
-    log(`知识库创建成功: ${created.id}`, "ok");
+    log(`Knowledge base created: ${created.id}`, "ok");
     newKnowledge.value = { name: "", description: "", source_uri: "", collection: "" };
   } catch (err) {
     logError(err);
@@ -51,19 +51,19 @@ async function createKnowledge() {
 }
 
 async function deleteKnowledge(id: string) {
-  log(`删除知识库: ${id}...`, "info");
+  log(`Deleting knowledge base: ${id}...`, "info");
   try {
     await client.value!.knowledge.delete(id);
     knowledgeBases.value = knowledgeBases.value.filter(k => k.id !== id);
     if (selectedId.value === id) selectedId.value = "";
-    log("删除成功", "ok");
+    log("Deleted successfully", "ok");
   } catch (err) {
     logError(err);
   }
 }
 
 async function refreshKnowledge(id: string) {
-  log(`刷新知识库状态: ${id}...`, "info");
+  log(`Refreshing knowledge base status: ${id}...`, "info");
   try {
     const updated = await client.value!.knowledge.get(id);
     const idx = knowledgeBases.value.findIndex(k => k.id === id);
@@ -74,7 +74,7 @@ async function refreshKnowledge(id: string) {
   }
 }
 
-// ── Card 2: 数据导入 ────────────────────────────────────────────────────────────
+// ── Card 2: Data Import ─────────────────────────────────────────────────────────
 const ingestKbId = ref("");
 const ingestType = ref<"text" | "url" | "file">("text");
 const ingestText = ref("");
@@ -89,14 +89,14 @@ function onFileChange(e: Event) {
 }
 
 async function doIngest() {
-  if (!ingestKbId.value) { log("请选择知识库", "warn"); return; }
+  if (!ingestKbId.value) { log("Please select a knowledge base", "warn"); return; }
 
   if (ingestType.value === "file") {
-    if (!ingestFile.value) { log("请选择文件", "warn"); return; }
-    log(`上传文件: ${ingestFile.value.name}...`, "info");
+    if (!ingestFile.value) { log("Please select a file", "warn"); return; }
+    log(`Upload File: ${ingestFile.value.name}...`, "info");
     try {
       await client.value!.knowledge.ingestFile(ingestKbId.value, ingestFile.value);
-      log("文件上传成功 (异步处理中)", "ok");
+      log("File uploaded (processing asynchronously)", "ok");
       ingestFile.value = null;
     } catch (err) {
       logError(err);
@@ -197,22 +197,22 @@ const STATUS_COLOR: Record<string, string> = {
 
 <template>
   <div>
-    <!-- Card 1: 知识库管理 -->
+    <!-- Card 1: Knowledge Base Management -->
     <div class="card">
-      <h3>知识库管理</h3>
+      <h3>Knowledge Base Management</h3>
       <div class="btn-row">
-        <button class="btn btn-outline" @click="listKnowledge">获取列表</button>
+        <button class="btn btn-outline" @click="listKnowledge">Fetch List</button>
       </div>
 
       <table v-if="knowledgeBases.length" class="kb-table">
         <thead>
           <tr>
             <th>ID</th>
-            <th>名称</th>
+            <th>Name</th>
             <th>Collection</th>
-            <th>状态</th>
-            <th>更新时间</th>
-            <th>操作</th>
+            <th>Status</th>
+            <th>Updated At</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -227,62 +227,62 @@ const STATUS_COLOR: Record<string, string> = {
             </td>
             <td>{{ new Date(kb.updated_at).toLocaleString() }}</td>
             <td class="action-cell">
-              <button class="btn btn-sm btn-outline" @click="refreshKnowledge(kb.id)">刷新</button>
-              <button class="btn btn-sm btn-danger" @click="deleteKnowledge(kb.id)">删除</button>
+              <button class="btn btn-sm btn-outline" @click="refreshKnowledge(kb.id)">Refresh</button>
+              <button class="btn btn-sm btn-danger" @click="deleteKnowledge(kb.id)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
 
       <div class="sub-section">
-        <h4>创建知识库</h4>
+        <h4>Create Knowledge Base</h4>
         <div class="row">
           <div class="field">
-            <label>名称 *</label>
+            <label>Name *</label>
             <input v-model="newKnowledge.name" type="text" placeholder="My Knowledge" />
           </div>
           <div class="field">
             <label>collection</label>
-            <input v-model="newKnowledge.collection" type="text" placeholder="可选" />
+            <input v-model="newKnowledge.collection" type="text" placeholder="optional" />
           </div>
         </div>
         <div class="field">
           <label>description</label>
-          <input v-model="newKnowledge.description" type="text" placeholder="可选描述" />
+          <input v-model="newKnowledge.description" type="text" placeholder="Optional description" />
         </div>
         <div class="field">
-          <label>source_uri（URL 源，用于 reingest）</label>
+          <label>source_uri (URL source, used for reingest)</label>
           <input v-model="newKnowledge.source_uri" type="text" placeholder="https://..." />
         </div>
-        <button class="btn btn-primary" @click="createKnowledge">创建知识库</button>
+        <button class="btn btn-primary" @click="createKnowledge">Create Knowledge Base</button>
       </div>
     </div>
 
-    <!-- Card 2: 数据导入 -->
+    <!-- Card 2: Data Import -->
     <div class="card">
-      <h3>数据导入</h3>
+      <h3>Data Import</h3>
       <div class="row">
         <div class="field">
-          <label>选择知识库</label>
+          <label>Select Knowledge Base</label>
           <select v-model="ingestKbId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="kb in knowledgeBases" :key="kb.id" :value="kb.id">{{ kb.name }}</option>
           </select>
         </div>
         <div class="field">
-          <label>导入类型</label>
+          <label>Import Type</label>
           <select v-model="ingestType">
-            <option value="text">文本</option>
+            <option value="text">Text</option>
             <option value="url">URL</option>
-            <option value="file">文件</option>
+            <option value="file">File</option>
           </select>
         </div>
       </div>
 
       <template v-if="ingestType === 'text'">
         <div class="field">
-          <label>文本内容</label>
-          <textarea v-model="ingestText" rows="4" placeholder="在此粘贴要导入的文本内容…" />
+          <label>Text Content</label>
+          <textarea v-model="ingestText" rows="4" placeholder="Paste text content to import..." />
         </div>
       </template>
 
@@ -295,7 +295,7 @@ const STATUS_COLOR: Record<string, string> = {
 
       <template v-else>
         <div class="field">
-          <label>文件（txt / md / pdf / docx）</label>
+          <label>File (txt / md / pdf / docx)</label>
           <input type="file" accept=".txt,.md,.pdf,.docx" @change="onFileChange" />
           <span v-if="ingestFile" class="file-hint">{{ ingestFile.name }}</span>
         </div>
@@ -303,40 +303,40 @@ const STATUS_COLOR: Record<string, string> = {
 
       <div v-if="ingestType !== 'file'" class="row">
         <div class="field">
-          <label>source_label（可选）</label>
-          <input v-model="ingestLabel" type="text" placeholder="文档来源标签" />
+          <label>source_label (optional)</label>
+          <input v-model="ingestLabel" type="text" placeholder="Document source label" />
         </div>
         <div class="field">
-          <label>language（可选）</label>
+          <label>language (optional)</label>
           <input v-model="ingestLang" type="text" placeholder="zh-CN" />
         </div>
       </div>
 
       <div class="btn-row">
         <button class="btn btn-primary" @click="doIngest">
-          {{ ingestType === "file" ? "上传文件" : "导入" }}
+          {{ ingestType === "file" ? "Upload File" : "Import" }}
         </button>
-        <button class="btn btn-outline" @click="doReingest" title="重新从 source_uri 导入（URL 源）">
-          重新导入 (reingest)
+        <button class="btn btn-outline" @click="doReingest" title="Re-import from source_uri (URL source)">
+          Re-import (reingest)
         </button>
       </div>
 
       <LogBox :entries="entries" />
     </div>
 
-    <!-- Card 3: 文档块管理 -->
+    <!-- Card 3: Document Chunks -->
     <div class="card">
-      <h3>文档块管理</h3>
+      <h3>Document Chunks</h3>
       <div class="row">
         <div class="field">
-          <label>选择知识库</label>
+          <label>Select Knowledge Base</label>
           <select v-model="docsKbId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="kb in knowledgeBases" :key="kb.id" :value="kb.id">{{ kb.name }}</option>
           </select>
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="listDocuments">加载文档块</button>
+          <button class="btn btn-outline" @click="listDocuments">Load Chunks</button>
         </div>
       </div>
 
@@ -345,9 +345,9 @@ const STATUS_COLOR: Record<string, string> = {
           <tr>
             <th>ID</th>
             <th>#</th>
-            <th>来源</th>
-            <th>内容摘要</th>
-            <th>操作</th>
+            <th>Source</th>
+            <th>Content Preview</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -357,22 +357,22 @@ const STATUS_COLOR: Record<string, string> = {
             <td>{{ doc.source_label }}</td>
             <td class="content-cell">{{ doc.content.slice(0, 80) }}{{ doc.content.length > 80 ? "…" : "" }}</td>
             <td>
-              <button class="btn btn-sm btn-danger" @click="deleteDocument(doc.id)">删除</button>
+              <button class="btn btn-sm btn-danger" @click="deleteDocument(doc.id)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
-      <p v-else-if="docsKbId" class="empty-hint">暂无文档块，请先导入数据。</p>
+      <p v-else-if="docsKbId" class="empty-hint">No chunks yet. Import data first.</p>
     </div>
 
-    <!-- Card 4: 语义搜索 -->
+    <!-- Card 4: Semantic Search -->
     <div class="card">
-      <h3>语义搜索</h3>
+      <h3>Semantic Search</h3>
       <div class="row">
         <div class="field">
-          <label>选择知识库</label>
+          <label>Select Knowledge Base</label>
           <select v-model="searchKbId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="kb in knowledgeBases" :key="kb.id" :value="kb.id">{{ kb.name }}</option>
           </select>
         </div>
@@ -381,22 +381,22 @@ const STATUS_COLOR: Record<string, string> = {
           <input v-model.number="searchTopK" type="number" min="1" max="20" style="width:5rem" />
         </div>
         <div class="field">
-          <label>language（可选）</label>
+          <label>language (optional)</label>
           <input v-model="searchLang" type="text" placeholder="zh-CN" />
         </div>
       </div>
       <div class="field">
-        <label>搜索词</label>
+        <label>Search Query</label>
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="例: 什么是向量数据库"
+          placeholder="e.g. What is a vector database"
           @keydown.enter="doSearch"
         />
       </div>
       <div class="btn-row">
-        <button class="btn btn-primary" @click="doSearch">搜索</button>
-        <button v-if="searchResults.length" class="btn btn-outline" @click="searchResults = []">清空结果</button>
+        <button class="btn btn-primary" @click="doSearch">Search</button>
+        <button v-if="searchResults.length" class="btn btn-outline" @click="searchResults = []">Clear Results</button>
       </div>
 
       <div v-if="searchResults.length" class="search-results">

@@ -18,7 +18,7 @@ watch(
 <template>
   <div ref="boxRef" class="log-box">
     <template v-if="entries.length === 0">
-      <span class="placeholder">等待操作...</span>
+      <span class="placeholder">Waiting for actions...</span>
     </template>
     <div v-for="e in entries" :key="e.id" :class="['log-line', e.level]">
       <span class="log-time">[{{ e.time }}]</span> {{ e.text }}

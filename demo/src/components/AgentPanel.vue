@@ -3,7 +3,7 @@ import { ref, watch, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse } from "@audarai/sdk";
+import type { AgentResponse, MessageResponse, SessionResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse } from "@audarai/sdk";
 import { Room, RoomEvent, Track, createLocalAudioTrack, setLogLevel, LogLevel, LoggerNames, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
@@ -12,7 +12,7 @@ const { entries, log, clear, logError } = useLog();
 // ── Card 1: Agents ─────────────────────────────────────────────────────────────
 const agents = ref<AgentResponse[]>([]);
 
-// ── 下拉选项数据 ────────────────────────────────────────────────────────────────
+// ── Dropdown data ────────────────────────────────────────────────────────────────
 const skillList      = ref<SkillResponse[]>([]);
 const knowledgeList  = ref<KnowledgeResponse[]>([]);
 const toolList       = ref<ToolResponse[]>([]);
@@ -53,13 +53,13 @@ const newAgent = ref({
 });
 
 async function listAgents() {
-  log("获取 Agent 列表...", "info");
+  log("Fetching Agent list...", "info");
   try {
     [agents.value] = await Promise.all([
       client.value!.agent.listAgents(),
       loadDropdownData(),
     ]);
-    log(`共 ${agents.value.length} 个 Agent`, "ok");
+    log(`Found ${agents.value.length} Agent(s)`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -68,18 +68,18 @@ async function listAgents() {
 const platformAgents = ref<AgentResponse[]>([]);
 
 async function listPlatformAgents() {
-  log("获取平台 Agent 列表...", "info");
+  log("Fetching platform Agent list...", "info");
   try {
     platformAgents.value = await client.value!.agent.listPlatformAgents();
-    log(`平台共 ${platformAgents.value.length} 个 Agent`, "ok");
+    log(`Found ${platformAgents.value.length} platform Agent(s)`, "ok");
   } catch (err) {
     logError(err);
   }
 }
 
 async function createAgent() {
-  if (!newAgent.value.name.trim()) { log("请填写 Agent 名称", "warn"); return; }
-  log(`创建 Agent: ${newAgent.value.name}...`, "info");
+  if (!newAgent.value.name.trim()) { log("Please enter Agent name", "warn"); return; }
+  log(`Creating Agent: ${newAgent.value.name}...`, "info");
   try {
     const created = await client.value!.agent.createAgent({
       name: newAgent.value.name,
@@ -101,14 +101,14 @@ async function createAgent() {
         : undefined,
     });
     agents.value.push(created);
-    log(`Agent 创建成功: ${created.id}`, "ok");
+    log(`Agent created successfully: ${created.id}`, "ok");
     newAgent.value = { name: "", description: "", system_prompt: "", voice_id: "", role: "", language: "", archetype_id: "", is_public: false, skills: [], knowledge_bindings: [], tool_bindings: [], memory_enable: false, memory_turns: "" };
   } catch (err) {
     logError(err);
   }
 }
 
-// ── 编辑 Agent ─────────────────────────────────────────────────────────────────
+// ── Edit Agent ─────────────────────────────────────────────────────────────────
 const editingId = ref<string | null>(null);
 const editForm = ref({
   name: "",
@@ -151,7 +151,7 @@ function cancelEdit() {
 
 async function saveEdit() {
   if (!editingId.value) return;
-  log(`更新 Agent: ${editingId.value}...`, "info");
+  log(`Updating Agent: ${editingId.value}...`, "info");
   try {
     const updated = await client.value!.agent.updateAgent(editingId.value, {
       name: editForm.value.name || undefined,
@@ -174,7 +174,7 @@ async function saveEdit() {
     });
     const idx = agents.value.findIndex(a => a.id === updated.id);
     if (idx >= 0) agents.value[idx] = updated;
-    log(`Agent 更新成功: ${updated.id}`, "ok");
+    log(`Agent updated successfully: ${updated.id}`, "ok");
     editingId.value = null;
   } catch (err) {
     logError(err);
@@ -182,46 +182,130 @@ async function saveEdit() {
 }
 
 async function deleteAgent(id: string) {
-  log(`删除 Agent: ${id}...`, "info");
+  log(`Deleting Agent: ${id}...`, "info");
   try {
     await client.value!.agent.deleteAgent(id);
     agents.value = agents.value.filter(a => a.id !== id);
-    log("删除成功", "ok");
+    log("Deleted successfully", "ok");
+    if (chatAgentId.value === id) chatAgentId.value = "";
   } catch (err) {
     logError(err);
   }
 }
 
-// ── Card 4: 消息记录 ────────────────────────────────────────────────────────────
+// ── Card 2: Chat ───────────────────────────────────────────────────────────────
+const chatAgentId = ref("");
+const chatMessage = ref("Hello");
+const chatVoiceId = ref("");
+const chatSessionId = ref("");
+const chatRoomId = ref("");
+const livekitToken = ref<Record<string, unknown> | null>(null);
+
+async function startChat() {
+  if (!chatAgentId.value) { log("Please select an Agent", "warn"); return; }
+  if (!chatMessage.value.trim()) { log("Please enter a message", "warn"); return; }
+  log(`Starting Chat (agent=${chatAgentId.value})...`, "info");
+  try {
+    const res = await client.value!.agent.createVoiceSession(chatAgentId.value, {
+      message: chatMessage.value,
+      ...(chatVoiceId.value ? { voice_id: chatVoiceId.value } : {}),
+      ...(userName.value ? { user_name: userName.value } : {}),
+      ...(userId.value ? { user_id: userId.value } : {}),
+    });
+    chatSessionId.value = res.session_id;
+    chatRoomId.value = res.room_id;
+    sessionId.value = res.session_id;
+    msgSessionId.value = res.session_id;
+    livekitToken.value = res as unknown as Record<string, unknown>;
+    log(`Chat started — session_id: ${res.session_id}`, "ok");
+    await loadMessages();
+  } catch (err) {
+    logError(err);
+  }
+}
+
+// ── Card 3: Session Management ───────────────────────────────────────────────────────
+const sessionId = ref("");
+const sessionDetail = ref<SessionResponse | null>(null);
+
+async function getSession() {
+  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
+  log(`Fetching Session details: ${sessionId.value}...`, "info");
+  try {
+    sessionDetail.value = await client.value!.agent.sessions.get(sessionId.value);
+    log(`Status: ${sessionDetail.value.status}`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
+
+async function pauseSession() {
+  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
+  log("Pausing Session...", "info");
+  try {
+    sessionDetail.value = await client.value!.agent.sessions.pause(sessionId.value);
+    log(`Status updated: ${sessionDetail.value.status}`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
+
+async function resumeSession() {
+  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
+  log("Resuming Session...", "info");
+  try {
+    sessionDetail.value = await client.value!.agent.sessions.resume(sessionId.value);
+    log(`Status updated: ${sessionDetail.value.status}`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
+
+async function endSession() {
+  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
+  log("Ending Session...", "info");
+  try {
+    sessionDetail.value = await client.value!.agent.sessions.end(sessionId.value);
+    log(`Status updated: ${sessionDetail.value.status}`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
+
+// ── Card 4: Messages ────────────────────────────────────────────────────────────
 const msgSessionId = ref("");
 const messages = ref<MessageResponse[]>([]);
+const appendRole = ref("");
+const appendContent = ref("");
+const appendSpeakerType = ref("");
+const appendSpeakerRefId = ref("");
 
 async function loadMessages() {
-  if (!msgSessionId.value.trim()) { log("请输入 session_id", "warn"); return; }
-  log("加载消息...", "info");
+  if (!msgSessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
+  log("Loading messages...", "info");
   try {
     const res = await client.value!.agent.sessions.listMessages(msgSessionId.value);
     // Backend may return a flat array or a {messages, total} wrapper
     messages.value = res.data ?? [];
     const total = res.total ?? messages.value.length;
-    log(`共 ${total} 条消息`, "ok");
+    log(`Found ${total} message(s)`, "ok");
   } catch (err) {
     logError(err);
   }
 }
 
-// ── Card 5: 语音对话 ────────────────────────────────────────────────────────────
+// ── Card 5: Voice Chat ────────────────────────────────────────────────────────────
 type VoiceState = "idle" | "connecting" | "connected" | "disconnecting";
 
 const voiceAgentId       = ref("");
-const voiceInitMsg       = ref("你好");
+const voiceInitMsg       = ref("Hello");
 const voiceVoiceId       = ref("");
 const userName           = ref("");
 const userId             = ref("");
 
 function randomizeUser() {
   const rand = () => Math.random().toString(36).slice(2, 6);
-  userName.value = `用户_${rand()}`;
+  userName.value = `User_${rand()}`;
   userId.value   = `user_${rand()}${rand()}`;
 }
 const voiceState         = ref<VoiceState>("idle");
@@ -283,11 +367,11 @@ function _prepareRoom(): Room {
     localIdentity.value = room.localParticipant.identity;
     lkParticipants.value = Array.from(room.remoteParticipants.values())
       .map(p => ({ identity: p.identity, name: p.name, sid: p.sid }));
-    log(`已连接到语音房间 — 本地参与者: identity="${room.localParticipant.identity}", name="${room.localParticipant.name}"`, "ok");
+    log(`Connected to voice room — local participant: identity="${room.localParticipant.identity}", name="${room.localParticipant.name}"`, "ok");
   });
   room.on(RoomEvent.ParticipantConnected, (p) => {
     lkParticipants.value.push({ identity: p.identity, name: p.name, sid: p.sid });
-    log(`成员加入: identity="${p.identity}", name="${p.name}"`, "info");
+    log(`Participant joined: identity="${p.identity}", name="${p.name}"`, "info");
   });
   room.on(RoomEvent.ParticipantNameChanged, (name, participant) => {
     const idx = lkParticipants.value.findIndex(p => p.sid === participant.sid);
@@ -295,18 +379,18 @@ function _prepareRoom(): Room {
   });
   room.on(RoomEvent.ParticipantDisconnected, (p) => {
     lkParticipants.value = lkParticipants.value.filter(x => x.sid !== p.sid);
-    log(`成员离开: identity="${p.identity}"`, "info");
+    log(`Participant left: identity="${p.identity}"`, "info");
   });
 
   room.on(RoomEvent.Disconnected, () => {
-    log("语音连接已断开", "info");
+    log("Voice connection disconnected", "info");
     teardownRoom();
   });
 
   room.on(RoomEvent.TrackSubscribed, (track) => {
     if (track.kind === Track.Kind.Audio && audioEl.value) {
       track.attach(audioEl.value);
-      log("收到 Agent 音频流", "ok");
+      log("Received Agent audio stream", "ok");
     }
   });
 
@@ -434,10 +518,10 @@ async function _connectRoom(
 }
 
 async function startVoice() {
-  if (!voiceAgentId.value) { log("请选择 Agent", "warn"); return; }
+  if (!voiceAgentId.value) { log("Please select an Agent", "warn"); return; }
   voiceState.value = "connecting";
   const t0 = performance.now();
-  log("发起语音对话...", "info");
+  log("Starting voice chat...", "info");
   try {
     // 1. Reuse pre-warmed Room (ICE + signal already established) or create fresh
     const wasPrewarmed = !!_prewarmedRoom;
@@ -449,7 +533,7 @@ async function startVoice() {
     // 2. API call (mic already warmed at page load)
     const tApi = performance.now();
     const res = await client.value!.agent.createVoiceSession(voiceAgentId.value, {
-      message: voiceInitMsg.value || "你好",
+      message: voiceInitMsg.value || "Hello",
       ...(voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : {}),
       ...(userName.value ? { user_name: userName.value } : {}),
       ...(userId.value ? { user_id: userId.value } : {}),
@@ -461,7 +545,7 @@ async function startVoice() {
 
     // 3. Connect + create audio track in parallel (fast if pre-warmed)
     await _connectRoom(room, res);
-    log(`总耗时: ${(performance.now() - t0).toFixed(0)}ms`, "ok");
+    log(`Total time: ${(performance.now() - t0).toFixed(0)}ms`, "ok");
   } catch (err) {
     teardownRoom();
     logError(err);
@@ -469,10 +553,10 @@ async function startVoice() {
 }
 
 async function joinVoice() {
-  if (!joinSessionId.value.trim()) { log("请输入要加入的 session_id", "warn"); return; }
+  if (!joinSessionId.value.trim()) { log("Please enter session_id to join", "warn"); return; }
   voiceState.value = "connecting";
   const t0 = performance.now();
-  log("加入已有 Session...", "info");
+  log("Joining existing Session...", "info");
   try {
     const room = _prewarmedRoom || _prepareRoom();
     _prewarmedRoom = null;
@@ -484,7 +568,7 @@ async function joinVoice() {
     log(`API response: ${(performance.now() - t0).toFixed(0)}ms`, "info");
 
     await _connectRoom(room, tokenRes);
-    log(`总耗时: ${(performance.now() - t0).toFixed(0)}ms`, "ok");
+    log(`Total time: ${(performance.now() - t0).toFixed(0)}ms`, "ok");
   } catch (err) {
     teardownRoom();
     logError(err);
@@ -495,7 +579,7 @@ async function toggleMic() {
   if (!_room) return;
   micEnabled.value = !micEnabled.value;
   await _room.localParticipant.setMicrophoneEnabled(micEnabled.value);
-  log(micEnabled.value ? "麦克风已开启" : "已静音", "info");
+  log(micEnabled.value ? "Microphone enabled" : "Muted", "info");
 }
 
 async function stopVoice() {
@@ -509,6 +593,24 @@ onUnmounted(() => {
   if (_prewarmedRoom) { _prewarmedRoom.removeAllListeners(); _prewarmedRoom = null; }
 });
 
+async function appendMessage() {
+  if (!msgSessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
+  if (!appendContent.value.trim()) { log("Please enter message content", "warn"); return; }
+  log("Appending message...", "info");
+  try {
+    const msg = await client.value!.agent.sessions.appendMessage(msgSessionId.value, {
+      role: appendRole.value || undefined,
+      content: appendContent.value,
+      speaker_type: appendSpeakerType.value || undefined,
+      speaker_ref_id: appendSpeakerRefId.value || undefined,
+    });
+    messages.value.push(msg);
+    appendContent.value = "";
+    log(`Message appended: ${msg.id}`, "ok");
+  } catch (err) {
+    logError(err);
+  }
+}
 </script>
 
 <template>
@@ -517,18 +619,18 @@ onUnmounted(() => {
     <div class="card">
       <h3>Agents</h3>
       <div class="row">
-        <button class="btn btn-outline" @click="listAgents">获取 Agent 列表</button>
-        <button class="btn btn-outline" @click="listPlatformAgents">获取平台 Agent</button>
-        <button class="btn btn-outline" @click="loadDropdownData">刷新下拉选项</button>
+        <button class="btn btn-outline" @click="listAgents">Fetch Agent List</button>
+        <button class="btn btn-outline" @click="listPlatformAgents">Fetch Platform Agents</button>
+        <button class="btn btn-outline" @click="loadDropdownData">Refresh Dropdowns</button>
       </div>
 
       <table v-if="platformAgents.length" class="agent-table">
-        <caption style="text-align:left;font-size:0.8rem;color:var(--text-muted,#6b7280);margin-bottom:0.3rem">平台 Agent（只读，任何租户可使用）</caption>
+        <caption style="text-align:left;font-size:0.8rem;color:var(--text-muted,#6b7280);margin-bottom:0.3rem">Platform Agents (read-only, available to all tenants)</caption>
         <thead>
           <tr>
             <th>ID</th>
-            <th>名称</th>
-            <th>语言</th>
+            <th>Name</th>
+            <th>Language</th>
             <th>voice_id</th>
             <th>role</th>
           </tr>
@@ -548,16 +650,16 @@ onUnmounted(() => {
         <thead>
           <tr>
             <th>ID</th>
-            <th>名称</th>
-            <th>语言</th>
+            <th>Name</th>
+            <th>Language</th>
             <th>voice_id</th>
             <th>role</th>
             <th>skills</th>
             <th>knowledge</th>
             <th>tools</th>
             <th>memory</th>
-            <th>创建时间</th>
-            <th>操作</th>
+            <th>Created At</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -573,8 +675,8 @@ onUnmounted(() => {
             <td>{{ agent.memory_policy?.enable_memory ? "✓" : "✗" }}</td>
             <td>{{ new Date(agent.created_at).toLocaleString() }}</td>
             <td>
-              <button class="btn btn-sm btn-outline" @click="startEdit(agent)">编辑</button>
-              <button class="btn btn-sm btn-danger" @click="deleteAgent(agent.id)">删除</button>
+              <button class="btn btn-sm btn-outline" @click="startEdit(agent)">Edit</button>
+              <button class="btn btn-sm btn-danger" @click="deleteAgent(agent.id)">Delete</button>
             </td>
           </tr>
         </tbody>
@@ -582,10 +684,10 @@ onUnmounted(() => {
 
       <!-- 编辑表单 -->
       <div v-if="editingId" class="sub-section">
-        <h4>编辑 Agent <span class="editing-id">{{ editingId.slice(0, 8) }}…</span></h4>
+        <h4>Edit Agent <span class="editing-id">{{ editingId.slice(0, 8) }}…</span></h4>
         <div class="row">
           <div class="field">
-            <label>名称</label>
+            <label>Name</label>
             <input v-model="editForm.name" type="text" />
           </div>
           <div class="field">
@@ -595,7 +697,7 @@ onUnmounted(() => {
           <div class="field">
             <label>voice_id</label>
             <select v-model="editForm.voice_id">
-              <option value="">— 不设置 —</option>
+              <option value="">— Not Set —</option>
               <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
             </select>
           </div>
@@ -603,7 +705,7 @@ onUnmounted(() => {
         <div class="row">
           <div class="field">
             <label>role</label>
-            <small class="field-tip">间接影响行为，不注入 LLM prompt。写入 agents_metadata 传给 LiveKit worker，多代理场景中用于识别代理身份及 Orchestrator 路由调度</small>
+            <small class="field-tip">Affects behavior indirectly — not injected into LLM prompt. Written to agents_metadata and passed to the LiveKit worker; used in multi-agent scenarios to identify agent identity and Orchestrator routing.</small>
             <input v-model="editForm.role" type="text" />
           </div>
           <div class="field">
@@ -619,12 +721,12 @@ onUnmounted(() => {
         </div>
         <div class="field">
           <label>description</label>
-          <small class="field-tip">纯元数据，不影响提示词，不传给 LiveKit worker，不进入 LLM。仅用于 API 返回和管理界面展示</small>
+          <small class="field-tip">Pure metadata — does not affect the prompt, is not passed to the LiveKit worker, and does not enter the LLM. Used only for API responses and management UI display.</small>
           <input v-model="editForm.description" type="text" />
         </div>
         <div class="field">
           <label>system_prompt</label>
-          <small class="field-tip">直接注入 LLM 的最高优先级系统指令。优先级：agent.system_prompt → identity["instructions"] → archetype.base_prompt → DEFAULT_INSTRUCTIONS，最终拼接为 system_prompt + "\n" + TTS_RULES</small>
+          <small class="field-tip">Highest-priority system instruction injected directly into the LLM. Priority: agent.system_prompt → identity["instructions"] → archetype.base_prompt → DEFAULT_INSTRUCTIONS. Final value is concatenated as system_prompt + "\n" + TTS_RULES.</small>
           <textarea v-model="editForm.system_prompt" rows="2" />
         </div>
         <div class="field">
@@ -654,20 +756,20 @@ onUnmounted(() => {
           </div>
           <div class="field">
             <label>num_history_turns</label>
-            <input v-model.number="editForm.memory_turns" type="number" min="1" placeholder="可选" />
+            <input v-model.number="editForm.memory_turns" type="number" min="1" placeholder="optional" />
           </div>
         </div>
         <div class="btn-row">
-          <button class="btn btn-primary" @click="saveEdit">保存</button>
-          <button class="btn btn-outline" @click="cancelEdit">取消</button>
+          <button class="btn btn-primary" @click="saveEdit">Save</button>
+          <button class="btn btn-outline" @click="cancelEdit">Cancel</button>
         </div>
       </div>
 
       <div class="sub-section">
-        <h4>创建 Agent</h4>
+        <h4>Create Agent</h4>
         <div class="row">
           <div class="field">
-            <label>名称 *</label>
+            <label>Name *</label>
             <input v-model="newAgent.name" type="text" placeholder="My Agent" />
           </div>
           <div class="field">
@@ -677,7 +779,7 @@ onUnmounted(() => {
           <div class="field">
             <label>voice_id</label>
             <select v-model="newAgent.voice_id">
-              <option value="">— 不设置 —</option>
+              <option value="">— Not Set —</option>
               <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
             </select>
           </div>
@@ -685,12 +787,12 @@ onUnmounted(() => {
         <div class="row">
           <div class="field">
             <label>role</label>
-            <small class="field-tip">间接影响行为，不注入 LLM prompt。写入 agents_metadata 传给 LiveKit worker，多代理场景中用于识别代理身份及 Orchestrator 路由调度</small>
-            <input v-model="newAgent.role" type="text" placeholder="角色描述（可选）" />
+            <small class="field-tip">Affects behavior indirectly — not injected into LLM prompt. Written to agents_metadata and passed to the LiveKit worker; used in multi-agent scenarios to identify agent identity and Orchestrator routing.</small>
+            <input v-model="newAgent.role" type="text" placeholder="Role description (optional)" />
           </div>
           <div class="field">
             <label>archetype_id</label>
-            <input v-model="newAgent.archetype_id" type="text" placeholder="原型 UUID（可选）" />
+            <input v-model="newAgent.archetype_id" type="text" placeholder="Archetype UUID (optional)" />
           </div>
           <div class="field" style="align-self:flex-end">
             <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
@@ -701,13 +803,13 @@ onUnmounted(() => {
         </div>
         <div class="field">
           <label>description</label>
-          <small class="field-tip">纯元数据，不影响提示词，不传给 LiveKit worker，不进入 LLM。仅用于 API 返回和管理界面展示</small>
-          <input v-model="newAgent.description" type="text" placeholder="可选描述" />
+          <small class="field-tip">Pure metadata — does not affect the prompt, is not passed to the LiveKit worker, and does not enter the LLM. Used only for API responses and management UI display.</small>
+          <input v-model="newAgent.description" type="text" placeholder="Optional description" />
         </div>
         <div class="field">
           <label>system_prompt</label>
-          <small class="field-tip">直接注入 LLM 的最高优先级系统指令。优先级：agent.system_prompt → identity["instructions"] → archetype.base_prompt → DEFAULT_INSTRUCTIONS，最终拼接为 system_prompt + "\n" + TTS_RULES</small>
-          <textarea v-model="newAgent.system_prompt" rows="2" placeholder="系统提示词（可选）" />
+          <small class="field-tip">Highest-priority system instruction injected directly into the LLM. Priority: agent.system_prompt → identity["instructions"] → archetype.base_prompt → DEFAULT_INSTRUCTIONS. Final value is concatenated as system_prompt + "\n" + TTS_RULES.</small>
+          <textarea v-model="newAgent.system_prompt" rows="2" placeholder="System prompt (optional)" />
         </div>
         <div class="field">
           <label>skills</label>
@@ -736,51 +838,113 @@ onUnmounted(() => {
           </div>
           <div class="field">
             <label>num_history_turns</label>
-            <input v-model.number="newAgent.memory_turns" type="number" min="1" placeholder="可选" />
+            <input v-model.number="newAgent.memory_turns" type="number" min="1" placeholder="optional" />
           </div>
         </div>
-        <button class="btn btn-primary" @click="createAgent">创建 Agent</button>
+        <button class="btn btn-primary" @click="createAgent">Create Agent</button>
       </div>
     </div>
 
-    <!-- Card 5: 语音对话 -->
+    <!-- Card 2: Chat -->
     <div class="card">
-      <h3>语音对话</h3>
+      <h3>Chat (Start a Quick Session)</h3>
       <div class="row">
         <div class="field">
-          <label>选择 Agent</label>
+          <label>Select Agent</label>
+          <select v-model="chatAgentId">
+            <option value="">— Fetch list first —</option>
+            <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+          </select>
+        </div>
+        <div class="field" style="flex:2">
+          <label>Message</label>
+          <input v-model="chatMessage" type="text" placeholder="Hello" />
+        </div>
+        <div class="field">
+          <label>voice_id (optional override)</label>
+          <select v-model="chatVoiceId">
+            <option value="">— Use Agent default —</option>
+            <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" @click="startChat">Start Chat</button>
+      </div>
+
+      <div v-if="chatSessionId" class="result-box">
+        <div><strong>session_id:</strong> {{ chatSessionId }}</div>
+        <div><strong>room_id:</strong> {{ chatRoomId }}</div>
+      </div>
+
+      <div v-if="livekitToken" class="result-box">
+        <pre>{{ JSON.stringify(livekitToken, null, 2) }}</pre>
+      </div>
+
+      <LogBox :entries="entries" />
+    </div>
+
+    <!-- Card 3: Session Management -->
+    <div class="card">
+      <h3>Session Management</h3>
+      <div class="row">
+        <div class="field" style="flex:3">
+          <label>session_id</label>
+          <input v-model="sessionId" type="text" placeholder="Auto-filled from Chat, or enter manually" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" @click="getSession">Get Details</button>
+        <button class="btn btn-outline" @click="pauseSession">Pause</button>
+        <button class="btn btn-outline" @click="resumeSession">Resume</button>
+        <button class="btn btn-danger"  @click="endSession">End</button>
+      </div>
+
+      <div v-if="sessionDetail" class="result-box">
+        <div><strong>id:</strong> {{ sessionDetail.id }}</div>
+        <div><strong>room_id:</strong> {{ sessionDetail.room_id }}</div>
+        <div><strong>status:</strong> <span :class="`status-${sessionDetail.status}`">{{ sessionDetail.status }}</span></div>
+        <div><strong>created_at:</strong> {{ new Date(sessionDetail.created_at).toLocaleString() }}</div>
+      </div>
+    </div>
+    <!-- Card 5: 语音对话 -->
+    <div class="card">
+      <h3>Voice Chat</h3>
+      <div class="row">
+        <div class="field">
+          <label>Select Agent</label>
           <select v-model="voiceAgentId">
-            <option value="">— 请先获取列表 —</option>
+            <option value="">— Fetch list first —</option>
             <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
         </div>
         <div class="field">
-          <label>开场语</label>
-          <input v-model="voiceInitMsg" type="text" placeholder="你好" />
+          <label>Opening message</label>
+          <input v-model="voiceInitMsg" type="text" placeholder="Hello" />
         </div>
         <div class="field">
-          <label>voice_id（可选覆盖）</label>
+          <label>voice_id (optional override)</label>
           <select v-model="voiceVoiceId">
-            <option value="">— 使用 Agent 默认 —</option>
+            <option value="">— Use Agent default —</option>
             <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
           </select>
         </div>
         <div class="field">
-          <label>我的显示名</label>
-          <input v-model="userName" type="text" placeholder="可选" />
+          <label>Display name</label>
+          <input v-model="userName" type="text" placeholder="optional" />
         </div>
         <div class="field">
-          <label>我的用户 ID</label>
-          <input v-model="userId" type="text" placeholder="可选，作为 LiveKit identity" />
+          <label>User ID</label>
+          <input v-model="userId" type="text" placeholder="Optional, used as LiveKit identity" />
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="randomizeUser">随机</button>
+          <button class="btn btn-outline" @click="randomizeUser">Random</button>
         </div>
       </div>
 
       <div class="voice-status" :class="`vs-${voiceState}`">
         <span class="voice-dot" />
-        <span>{{ { idle: "未连接", connecting: "连接中…", connected: "已连接", disconnecting: "断开中…" }[voiceState] }}</span>
+        <span>{{ { idle: "Not connected", connecting: "Connecting…", connected: "Connected", disconnecting: "Disconnecting…" }[voiceState] }}</span>
         <span v-if="voiceSessionId && voiceState !== 'idle'" class="voice-sid">{{ voiceSessionId.slice(0, 8) }}…</span>
       </div>
 
@@ -793,7 +957,7 @@ onUnmounted(() => {
 
       <div v-if="voiceState === 'connected'" class="speakers-row">
         <div class="speaker-pill" :class="{ speaking: speakingIdentities.includes(localIdentity) }">
-          {{ micEnabled ? '🎤' : '🔇' }} {{ userName || localIdentity || '我' }}
+          {{ micEnabled ? '🎤' : '🔇' }} {{ userName || localIdentity || 'Me' }}
         </div>
         <div
           v-for="p in lkParticipants"
@@ -806,42 +970,42 @@ onUnmounted(() => {
       </div>
 
       <div v-if="voiceState === 'connected'" class="subtitle-box">
-        <div v-if="!subtitleLines.length" class="subtitle-empty">等待字幕…</div>
+        <div v-if="!subtitleLines.length" class="subtitle-empty">Waiting for captions…</div>
         <div
           v-for="line in subtitleLines"
           :key="line.id"
           :class="['subtitle-line', `sub-${line.role}`, { 'sub-live': !line.final }]"
         >
-          <span class="sub-role">{{ line.role === "user" ? "我" : "Agent" }}</span>
+          <span class="sub-role">{{ line.role === "user" ? "Me" : "Agent" }}</span>
           <span class="sub-text">{{ line.text }}</span>
           <span v-if="!line.final" class="sub-cursor">▋</span>
         </div>
       </div>
 
       <div class="sub-section">
-        <h4>加入已有 Session</h4>
+        <h4>Join Existing Session</h4>
         <div class="row">
           <div class="field" style="flex:3">
             <label>session_id</label>
-            <input v-model="joinSessionId" type="text" placeholder="已有活跃 Session 的 ID" :disabled="voiceState !== 'idle'" />
+            <input v-model="joinSessionId" type="text" placeholder="ID of an active session" :disabled="voiceState !== 'idle'" />
           </div>
         </div>
-        <p class="hint">Session 已在 preparing / running 状态时使用此入口，不会重新创建房间。</p>
+        <p class="hint">Use this when the session is already in preparing / running state — no new room will be created.</p>
       </div>
 
       <div class="btn-row">
         <template v-if="voiceState === 'idle'">
-          <button class="btn btn-primary" @click="startVoice">📞 开始语音对话</button>
-          <button class="btn btn-outline" :disabled="!joinSessionId" @click="joinVoice">🔗 加入已有 Session</button>
+          <button class="btn btn-primary" @click="startVoice">📞 Start Voice Chat</button>
+          <button class="btn btn-outline" :disabled="!joinSessionId" @click="joinVoice">🔗 Join Existing Session</button>
         </template>
         <template v-else-if="voiceState === 'connected'">
           <button class="btn btn-outline" @click="toggleMic">
-            {{ micEnabled ? "🔇 静音" : "🎤 取消静音" }}
+            {{ micEnabled ? "🔇 Mute" : "🎤 Unmute" }}
           </button>
-          <button class="btn btn-danger" @click="stopVoice">📵 挂断</button>
+          <button class="btn btn-danger" @click="stopVoice">📵 Hang Up</button>
         </template>
         <button v-else class="btn btn-outline" disabled>
-          {{ voiceState === "connecting" ? "连接中…" : "断开中…" }}
+          {{ voiceState === "connecting" ? "Connecting…" : "Disconnecting…" }}
         </button>
       </div>
 
@@ -851,14 +1015,14 @@ onUnmounted(() => {
 
     <!-- Card 4: 消息记录 -->
     <div class="card">
-      <h3>消息记录</h3>
+      <h3>Messages</h3>
       <div class="row">
         <div class="field" style="flex:3">
           <label>session_id</label>
-          <input v-model="msgSessionId" type="text" placeholder="从 Chat 自动填入，或手动输入" />
+          <input v-model="msgSessionId" type="text" placeholder="Auto-filled from Chat, or enter manually" />
         </div>
         <div class="field" style="align-self:flex-end">
-          <button class="btn btn-outline" @click="loadMessages">加载消息</button>
+          <button class="btn btn-outline" @click="loadMessages">Load Messages</button>
         </div>
       </div>
 
@@ -870,6 +1034,33 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div class="sub-section">
+        <h4>Append Message</h4>
+        <div class="row">
+          <div class="field">
+            <label>role (optional)</label>
+            <select v-model="appendRole">
+              <option value="">—</option>
+              <option value="user">user</option>
+              <option value="assistant">assistant</option>
+              <option value="system">system</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>speaker_type (optional)</label>
+            <input v-model="appendSpeakerType" type="text" placeholder="human / agent / system" />
+          </div>
+          <div class="field">
+            <label>speaker_ref_id (optional)</label>
+            <input v-model="appendSpeakerRefId" type="text" placeholder="Agent UUID etc." />
+          </div>
+        </div>
+        <div class="field">
+          <label>content</label>
+          <textarea v-model="appendContent" rows="2" placeholder="Message content" />
+        </div>
+        <button class="btn btn-primary" @click="appendMessage">Append Message</button>
+      </div>
     </div>
 
     <LogBox :entries="entries" />

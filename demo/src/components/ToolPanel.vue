@@ -8,38 +8,38 @@ import type { ToolResponse, BuiltinCatalogEntry, ToolType } from "@audarai/sdk";
 const { client } = useClient();
 const { entries, log, clear, logError } = useLog();
 
-// ── Card 1: Tool 列表 ──────────────────────────────────────────────────────────
+// ── Card 1: Tool List ──────────────────────────────────────────────────────────
 const tools = ref<ToolResponse[]>([]);
 
 async function listTools() {
-  log("获取 Tool 列表...", "info");
+  log("Fetching tool list...", "info");
   try {
     tools.value = await client.value!.tool.list();
-    log(`共 ${tools.value.length} 个 Tool`, "ok");
+    log(`Found ${tools.value.length} tools`, "ok");
   } catch (err) {
     logError(err);
   }
 }
 
 async function deleteTool(id: string) {
-  log(`删除 Tool: ${id}...`, "info");
+  log(`Deleting tool: ${id}...`, "info");
   try {
     await client.value!.tool.delete(id);
     tools.value = tools.value.filter(t => t.id !== id);
-    log("删除成功", "ok");
+    log("Deleted successfully", "ok");
   } catch (err) {
     logError(err);
   }
 }
 
-// ── Card 2: 内置 Toolkit 目录 ──────────────────────────────────────────────────
+// ── Card 2: Built-in Toolkit Catalog ──────────────────────────────────────────────────
 const builtins = ref<BuiltinCatalogEntry[]>([]);
 
 async function listBuiltins() {
-  log("获取内置 Toolkit 目录...", "info");
+  log("Fetching built-in toolkit catalog...", "info");
   try {
     builtins.value = await client.value!.tool.listBuiltins();
-    log(`共 ${builtins.value.length} 个内置 Toolkit`, "ok");
+    log(`Found ${builtins.value.length} built-in toolkits`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -48,7 +48,7 @@ async function listBuiltins() {
 function useBuiltin(entry: BuiltinCatalogEntry) {
   toolType.value = "builtin";
   builtinToolkit.value = entry.toolkit;
-  log(`已填充内置 Toolkit: ${entry.toolkit}`, "info");
+  log(`Populated built-in toolkit: ${entry.toolkit}`, "info");
 }
 
 // ── Card 3: 创建 Tool ──────────────────────────────────────────────────────────
@@ -144,22 +144,22 @@ const TYPE_COLOR: Record<ToolType, string> = {
 
 <template>
   <div>
-    <!-- Card 1: Tool 列表 -->
+    <!-- Card 1: Tool List -->
     <div class="card">
-      <h3>Tool 列表</h3>
+      <h3>Tool List</h3>
       <div class="btn-row">
-        <button class="btn btn-outline" @click="listTools">刷新列表</button>
+        <button class="btn btn-outline" @click="listTools">Refresh</button>
       </div>
 
       <table v-if="tools.length" class="tool-table">
         <thead>
           <tr>
             <th>ID</th>
-            <th>名称</th>
-            <th>类型</th>
-            <th>状态</th>
-            <th>创建时间</th>
-            <th>操作</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -172,59 +172,59 @@ const TYPE_COLOR: Record<ToolType, string> = {
             <td>{{ t.status }}</td>
             <td>{{ new Date(t.created_at).toLocaleString() }}</td>
             <td class="action-cell">
-              <button class="btn btn-sm btn-danger" @click="deleteTool(t.id)">删除</button>
+              <button class="btn btn-sm btn-danger" @click="deleteTool(t.id)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
-      <p v-else class="empty-hint">暂无 Tool，点击「刷新列表」加载。</p>
+      <p v-else class="empty-hint">No tools yet. Click Refresh to load.</p>
 
       <LogBox :entries="entries" />
     </div>
 
-    <!-- Card 2: 内置 Toolkit 目录 -->
+    <!-- Card 2: Built-in Toolkit Catalog -->
     <div class="card">
-      <h3>内置 Toolkit 目录</h3>
+      <h3>Built-in Toolkit Catalog</h3>
       <div class="btn-row">
-        <button class="btn btn-outline" @click="listBuiltins">加载目录</button>
+        <button class="btn btn-outline" @click="listBuiltins">Load Catalog</button>
       </div>
 
       <table v-if="builtins.length" class="tool-table">
         <thead>
           <tr>
             <th>Toolkit</th>
-            <th>描述</th>
-            <th>需要认证</th>
-            <th>认证字段</th>
-            <th>操作</th>
+            <th>Description</th>
+            <th>Auth Required</th>
+            <th>Auth Fields</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="b in builtins" :key="b.toolkit">
             <td><code>{{ b.toolkit }}</code></td>
             <td>{{ b.description }}</td>
-            <td>{{ b.auth_required ? "是" : "否" }}</td>
+            <td>{{ b.auth_required ? "Yes" : "No" }}</td>
             <td class="id-cell">{{ b.auth_fields.join(", ") || "—" }}</td>
             <td>
-              <button class="btn btn-sm btn-outline" @click="useBuiltin(b)">使用</button>
+              <button class="btn btn-sm btn-outline" @click="useBuiltin(b)">Use</button>
             </td>
           </tr>
         </tbody>
       </table>
-      <p v-else class="empty-hint">点击「加载目录」查看所有内置 Toolkit。</p>
+      <p v-else class="empty-hint">Click Load Catalog to see all built-in toolkits.</p>
     </div>
 
-    <!-- Card 3: 创建 Tool -->
+    <!-- Card 3: Create Tool -->
     <div class="card">
-      <h3>创建 Tool</h3>
+      <h3>Create Tool</h3>
 
       <div class="row">
         <div class="field">
-          <label>名称 *</label>
+          <label>Name *</label>
           <input v-model="newTool.name" type="text" placeholder="My Tool" />
         </div>
         <div class="field">
-          <label>类型</label>
+          <label>Type</label>
           <select v-model="toolType">
             <option value="http">http</option>
             <option value="builtin">builtin</option>
@@ -234,14 +234,14 @@ const TYPE_COLOR: Record<ToolType, string> = {
       </div>
 
       <div class="field">
-        <label>描述（可选）</label>
-        <input v-model="newTool.description" type="text" placeholder="工具用途说明" />
+        <label>Description (optional)</label>
+        <input v-model="newTool.description" type="text" placeholder="Describe the tool purpose" />
       </div>
 
       <!-- http config -->
       <template v-if="toolType === 'http'">
         <div class="sub-section">
-          <h4>HTTP 配置</h4>
+          <h4>HTTP Config</h4>
           <div class="row">
             <div class="field" style="flex:3">
               <label>URL *</label>
@@ -263,7 +263,7 @@ const TYPE_COLOR: Record<ToolType, string> = {
             </div>
           </div>
           <div class="field">
-            <label>headers（JSON，可选）</label>
+            <label>Headers (JSON, optional)</label>
             <textarea v-model="httpHeaders" rows="3" placeholder='{"Authorization": "Bearer xxx"}' />
           </div>
         </div>
@@ -272,18 +272,18 @@ const TYPE_COLOR: Record<ToolType, string> = {
       <!-- builtin config -->
       <template v-else-if="toolType === 'builtin'">
         <div class="sub-section">
-          <h4>Builtin 配置</h4>
+          <h4>Builtin Config</h4>
           <div class="field">
             <label>toolkit *</label>
             <input v-model="builtinToolkit" type="text" placeholder="e.g. web_search" />
           </div>
           <div class="row">
             <div class="field">
-              <label>include_tools（逗号分隔，可选）</label>
+              <label>include_tools (comma-separated, optional)</label>
               <input v-model="builtinInclude" type="text" placeholder="search,summarize" />
             </div>
             <div class="field">
-              <label>exclude_tools（逗号分隔，可选）</label>
+              <label>exclude_tools (comma-separated, optional)</label>
               <input v-model="builtinExclude" type="text" placeholder="dangerous_tool" />
             </div>
           </div>
@@ -293,7 +293,7 @@ const TYPE_COLOR: Record<ToolType, string> = {
       <!-- mcp config -->
       <template v-else>
         <div class="sub-section">
-          <h4>MCP 配置</h4>
+          <h4>MCP Config</h4>
           <div class="row">
             <div class="field">
               <label>transport</label>
@@ -320,7 +320,7 @@ const TYPE_COLOR: Record<ToolType, string> = {
                 <input v-model="mcpCommand" type="text" placeholder="npx" />
               </div>
               <div class="field" style="flex:3">
-                <label>args（空格分隔）</label>
+                <label>args (space-separated)</label>
                 <input v-model="mcpArgs" type="text" placeholder="-y @modelcontextprotocol/server-everything" />
               </div>
             </div>
@@ -329,7 +329,7 @@ const TYPE_COLOR: Record<ToolType, string> = {
       </template>
 
       <div class="btn-row">
-        <button class="btn btn-primary" @click="createTool">创建 Tool</button>
+        <button class="btn btn-primary" @click="createTool">Create Tool</button>
       </div>
     </div>
   </div>

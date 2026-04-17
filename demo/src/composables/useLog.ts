@@ -30,13 +30,13 @@ export function useLog() {
 
   function logError(err: unknown) {
     if (err instanceof InsufficientBalanceError) {
-      log("余额不足，请充值", "err");
+      log("Insufficient balance, please top up", "err");
     } else if (err instanceof RateLimitedError) {
-      log(`请求过频，请 ${err.retryAfter ?? "?"}s 后重试`, "err");
+      log(`Rate limited, retry after ${err.retryAfter ?? "?"}s`, "err");
     } else if (err instanceof AuthenticationError) {
-      log(`认证失败: ${err.message}`, "err");
+      log(`Authentication failed: ${err.message}`, "err");
     } else if (err instanceof ApiError) {
-      log(`API 错误 [${err.statusCode}/${err.code}]: ${err.message}`, "err");
+      log(`API error [${err.statusCode}/${err.code}]: ${err.message}`, "err");
     } else if (err instanceof Error) {
       log(err.message, "err");
     } else {

@@ -97,7 +97,7 @@ import { createAudaraiClient } from '@audarai/sdk';
 
 // 1. إنشاء العميل
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_your_key_here',
 });
 
@@ -133,7 +133,7 @@ new Audio(URL.createObjectURL(blob)).play();
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_xxx',
 });
 ```
@@ -151,13 +151,13 @@ const client = createAudaraiClient({
 ```typescript
 // سلسلة ثابتة
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
 });
 
 // دالة ديناميكية (موصى به — يدعم تجديد الرمز)
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   accessToken: async () => keycloakAdapter.token,
 });
 ```
@@ -168,7 +168,7 @@ const client = createAudaraiClient({
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   apiKey: 'ak_xxx',
 });
 ```
@@ -722,7 +722,7 @@ try {
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_xxx',
   refreshThresholdSeconds: 60,  // التجديد قبل 60 ثانية (الافتراضي: 30)
 });
@@ -740,7 +740,7 @@ const client = createAudaraiClient({
 import fetch from 'node-fetch';
 
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   apiKey: 'ak_xxx',
   fetch: fetch as typeof globalThis.fetch,
 });

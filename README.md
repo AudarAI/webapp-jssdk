@@ -95,7 +95,7 @@ import { createAudaraiClient } from '@audarai/sdk';
 
 // 1. Create a client
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_your_key_here',
 });
 
@@ -132,7 +132,7 @@ The SDK supports three mutually exclusive authentication modes. Choose exactly o
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_xxx',
 });
 ```
@@ -150,13 +150,13 @@ For applications already using Keycloak or another OAuth2 provider. HTTP request
 ```typescript
 // Static string
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   accessToken: 'eyJhbGciOiJSUzI1NiJ9...',
 });
 
 // Dynamic function (recommended — supports token refresh)
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   accessToken: async () => keycloakAdapter.token,
 });
 ```
@@ -167,7 +167,7 @@ const client = createAudaraiClient({
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   apiKey: 'ak_xxx',
 });
 ```
@@ -721,7 +721,7 @@ The SDK proactively refreshes session tokens before they expire (default: 30 sec
 
 ```typescript
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   publishableKey: 'pk_xxx',
   refreshThresholdSeconds: 60,  // Refresh 60s before expiry (default: 30)
 });
@@ -739,7 +739,7 @@ For **Node.js < 18**, pass a custom `fetch` implementation:
 import fetch from 'node-fetch';
 
 const client = createAudaraiClient({
-  baseUrl: 'https://api.audarai.com',
+  baseUrl: 'https://prod.audarai.com/apiv2',
   apiKey: 'ak_xxx',
   fetch: fetch as typeof globalThis.fetch,
 });
