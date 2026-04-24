@@ -1,4 +1,6 @@
 export { AudaraiClient } from "./client";
+export { RelayAuth } from "./auth";
+export type { RelayAuthConfig, AuthStorage, TokenSet } from "./auth";
 export { TtsApi } from "./tts";
 export { SttApi, SttWebSocket } from "./stt";
 export { TranslationApi, TranslationWebSocket } from "./translation";
