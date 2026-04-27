@@ -5,4 +5,7 @@ export default defineConfig({
   plugins: [vue()],
   resolve: { preserveSymlinks: true },
   optimizeDeps: { exclude: ["@audarai/sdk"] },
+  server: {
+    allowedHosts: true,
+  },
 });
