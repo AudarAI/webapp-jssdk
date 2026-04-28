@@ -67,6 +67,8 @@ const PANEL_TITLES: Record<Panel, string> = {
           {{ item.label }}
         </button>
       </nav>
+
+      <div class="sidebar-version">v0.0.1</div>
     </aside>
 
     <!-- ── Main ── -->
