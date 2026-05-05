@@ -112,10 +112,11 @@ export class SttApi {
     options: TranscribeStreamOptions = {},
     handlers: TranscribeStreamHandlers = {},
   ): Promise<TranscribeResult> {
-    const { provider, language } = options;
+    const { provider, language, forced_alignment } = options;
     const form = new FormData();
     form.append("file", audio);
     if (language) form.append("language", language);
+    if (forced_alignment != null) form.append("forced_alignment", String(forced_alignment));
 
     const resp = await this._http.request<Response>("POST", "/v1/speech/audio/transcriptions/stream", {
       body: form,
@@ -171,6 +172,7 @@ export class SttApi {
     return {
       text: finalChunk?.text ?? "",
       language: finalChunk?.language,
+      timestamps: finalChunk?.timestamps,
     };
   }
 
@@ -198,6 +200,9 @@ export class SttApi {
     const params = new URLSearchParams({ token });
     if (options.provider) params.set("provider", options.provider);
     if (options.language) params.set("language", options.language);
+    if (options.forced_alignment != null) {
+      params.set("forced_alignment", String(options.forced_alignment));
+    }
 
     const ws = new WebSocket(`${wsBase}/v1/speech/audio/transcriptions/ws?${params}`);
     return new SttWebSocket(ws, handlers);

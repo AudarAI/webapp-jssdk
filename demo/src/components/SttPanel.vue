@@ -11,12 +11,13 @@ import DropZone from "./DropZone.vue";
 const { client } = useClient();
 
 // ── File transcribe ───────────────────────────────────────────────────────────
-const fileLog   = useLog();
-const audioFile = ref<File | null>(null);
-const sttLang   = ref("");
-const sttProv   = ref("");
-const loading   = ref(false);
-const result = ref("");
+const fileLog        = useLog();
+const audioFile      = ref<File | null>(null);
+const sttLang        = ref("");
+const sttProv        = ref("");
+const sttForceAlign  = ref(false);
+const loading        = ref(false);
+const result         = ref("");
 
 async function transcribe() {
   if (!audioFile.value) { fileLog.log("请选择音频文件", "warn"); return; }
@@ -28,6 +29,7 @@ async function transcribe() {
     const res = await client.value!.stt.transcribe(audioFile.value, {
       language: sttLang.value || undefined,
       provider: sttProv.value || undefined,
+      forced_alignment: sttForceAlign.value || undefined,
     });
     result.value = res.text;
     if (res.language) fileLog.log(`语言: ${res.language}`);
@@ -58,15 +60,26 @@ async function transcribeStream() {
       {
         language: sttLang.value || undefined,
         provider: sttProv.value || undefined,
+        forced_alignment: sttForceAlign.value || undefined,
       },
       {
         onChunk: ({ text, language, is_final, chunk_index }) => {
           result.value = text;
           fileLog.log(`chunk${chunk_index} [${language}]${is_final ? " [final]" : ""}: ${text}`);
         },
-        onFinal: ({ text, language }) => {
+        onFinal: ({ text, language, timestamps, alignment }) => {
           result.value = text;
           fileLog.log(`最终结果 [${language}]: ${text}`, "ok");
+          if (timestamps?.length) {
+            fileLog.log(`时间戳 (${timestamps.length} 条):`);
+            timestamps.slice(0, 10).forEach((t) =>
+              fileLog.log(`  [${t.start_time.toFixed(2)}s – ${t.end_time.toFixed(2)}s]  ${t.text}`)
+            );
+            if (timestamps.length > 10)
+              fileLog.log(`  ...还有 ${timestamps.length - 10} 条`);
+          } else if (alignment === "unavailable") {
+            fileLog.log("forced_alignment 已请求，但模型未输出时间戳", "warn");
+          }
         },
         onError: (err) => {
           fileLog.log(`错误: ${err.message}`, "err");
@@ -96,10 +109,11 @@ async function transcribeStream() {
 
 type WsState = "idle" | "connecting" | "connected";
 
-const wsLog   = useLog();
-const wsLang  = ref("zh");
-const wsProv  = ref("");
-const wsState = ref<WsState>("idle");
+const wsLog         = useLog();
+const wsLang        = ref("zh");
+const wsProv        = ref("");
+const wsForceAlign  = ref(false);
+const wsState       = ref<WsState>("idle");
 
 // 实时字幕（随 partial 更新，segment 时固化）
 const partialText  = ref("");
@@ -121,12 +135,14 @@ async function startWs() {
       {
         language: wsLang.value || undefined,
         provider: wsProv.value || undefined,
+        forced_alignment: wsForceAlign.value || undefined,
       },
       {
         // 服务端就绪，SDK 已自动回 {"type":"start"}，此时启动麦克风
         onReady: async ({ session_id, language }) => {
           wsState.value = "connected";
           wsLog.log(`会话就绪  session_id=${session_id}  language=${language}`, "ok");
+          if (wsForceAlign.value) wsLog.log("已请求词级时间戳 (forced_alignment=true)", "info");
           wsLog.log("开始录音，等待语音输入...", "info");
           await mic.start();
         },
@@ -138,16 +154,34 @@ async function startWs() {
         },
 
         // 段落转写完成（VAD 切割 或 超 15s）
-        onSegment: ({ segment_index, text, language, audio_duration, reason }) => {
+        onSegment: ({ segment_index, text, language, audio_duration, reason, timestamps, alignment }) => {
           partialText.value = "";
           const entry = `✓ seg${segment_index} [${language}] ${text}  (${audio_duration.toFixed(1)}s, ${reason})`;
           segmentLogs.value.push(entry);
           wsLog.log(entry, "ok");
+          if (timestamps?.length) {
+            wsLog.log(`  ts(${timestamps.length}): ` + timestamps
+              .slice(0, 6)
+              .map((t) => `[${t.start_time.toFixed(2)}-${t.end_time.toFixed(2)}]${t.text}`)
+              .join(" "));
+            if (timestamps.length > 6) wsLog.log(`  ...+${timestamps.length - 6}`);
+          } else if (alignment === "unavailable") {
+            wsLog.log("  (forced_alignment 已请求，但模型未输出时间戳)", "warn");
+          }
         },
 
         // 全部处理完成（stop 之后服务端发）
-        onFinal: ({ text, language, duration }) => {
+        onFinal: ({ text, language, duration, timestamps, alignment }) => {
           wsLog.log(`✓ 最终结果 [${language}]: ${text}  (总时长 ${duration.toFixed(1)}s)`, "ok");
+          if (timestamps?.length) {
+            wsLog.log(`时间戳 (${timestamps.length} 条):`);
+            timestamps.slice(0, 10).forEach((t) =>
+              wsLog.log(`  [${t.start_time.toFixed(2)}s – ${t.end_time.toFixed(2)}s]  ${t.text}`)
+            );
+            if (timestamps.length > 10) wsLog.log(`  ...还有 ${timestamps.length - 10} 条`);
+          } else if (alignment === "unavailable") {
+            wsLog.log("forced_alignment 已请求，但模型未输出时间戳", "warn");
+          }
           cleanup();
         },
 
@@ -198,6 +232,13 @@ function cleanup() {
           <label>provider</label>
           <input v-model="sttProv" type="text" placeholder="flash / turbo" />
         </div>
+        <div class="field field-check">
+          <label>
+            <input v-model="sttForceAlign" type="checkbox" />
+            forced_alignment
+            <span class="hint">词级时间戳</span>
+          </label>
+        </div>
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" :disabled="loading" @click="transcribe">Transcribe</button>
@@ -233,6 +274,13 @@ function cleanup() {
           <label>provider</label>
           <input v-model="wsProv" type="text" placeholder="flash / turbo" />
         </div>
+        <div class="field field-check">
+          <label>
+            <input v-model="wsForceAlign" type="checkbox" :disabled="wsState !== 'idle'" />
+            forced_alignment
+            <span class="hint">词级时间戳</span>
+          </label>
+        </div>
       </div>
 
       <div class="btn-row">
@@ -251,3 +299,27 @@ function cleanup() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.field-check {
+  justify-content: flex-end;
+  align-self: end;
+}
+.field-check label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  font-size: 12px;
+  color: #ccc;
+  cursor: pointer;
+}
+.field-check input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+.field-check .hint {
+  color: #888;
+  font-size: 11px;
+}
+</style>
