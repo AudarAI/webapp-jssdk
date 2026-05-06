@@ -63,6 +63,17 @@ export interface SpeakerOperationResponse {
   data?: unknown;
 }
 
+export interface ModelInfo {
+  /** Unique handle, e.g. "tts-flash" — pass as `provider` query param. */
+  name: string;
+  /** Human-friendly label for UI (e.g. "TTS Flash"). */
+  display_name: string;
+  /** Capability tag: "tts" | "stt" | "llm" | "mt" | ... */
+  kind: string;
+  /** True for the default row of this kind (used when caller omits `provider`). */
+  is_default: boolean;
+}
+
 export interface WordTimestamp {
   text: string;
   start_time: number;

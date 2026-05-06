@@ -175,6 +175,16 @@ const client = createAudaraiClient({
 
 ## 文字转语音（TTS）
 
+### 列出可用模型
+
+```typescript
+const models = await client.tts.listModels();
+// → [{ name: 'tts-flash', display_name: 'TTS Flash', kind: 'tts', is_default: false }, ...]
+
+// 用 is_default 给下拉框预选默认模型
+const defaultModel = models.find((m) => m.is_default)?.name;
+```
+
 ### 合成音频
 
 ```typescript
@@ -228,6 +238,15 @@ await client.tts.deleteSpeaker('my-voice');
 ---
 
 ## 语音转文字（STT）
+
+### 列出可用模型
+
+```typescript
+const models = await client.stt.listModels();
+// → [{ name: 'stt-flash', display_name: 'STT Flash', kind: 'stt', is_default: false }, ...]
+
+const defaultModel = models.find((m) => m.is_default)?.name;
+```
 
 ### 转写音频文件
 

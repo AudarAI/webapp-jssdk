@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
+import { nextTick, ref, watch } from "vue";
+import type { ModelInfo } from "@audarai/sdk";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import { bufferToObjectUrl, downloadBuffer, fmtSize } from "../utils/audio";
@@ -34,6 +35,23 @@ const synthProvider = ref("");
 const audioSrc      = ref("");
 const loading       = ref(false);
 const audioEl       = ref<HTMLAudioElement | null>(null);
+
+// ── Providers (TTS models) ────────────────────────────────────────────────────
+const providerList = ref<ModelInfo[]>([]);
+
+async function listProviders() {
+  try {
+    const list = await client.value!.tts.listModels();
+    providerList.value = list;
+    if (!synthProvider.value) {
+      synthProvider.value = list.find((m) => m.is_default)?.name ?? "";
+    }
+  } catch (err) {
+    logError(err);
+  }
+}
+
+watch(client, (c) => { if (c) listProviders(); }, { immediate: true });
 
 function buildOpts() {
   return {
@@ -203,7 +221,10 @@ async function synthesizeStream() {
         </div>
         <div class="field">
           <label>provider</label>
-          <input v-model="synthProvider" type="text" placeholder="flash / turbo / pro" />
+          <select v-model="synthProvider">
+            <option value="">(default)</option>
+            <option v-for="m in providerList" :key="m.name" :value="m.name">{{ m.display_name }}</option>
+          </select>
         </div>
       </div>
 

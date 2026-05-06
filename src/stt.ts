@@ -1,6 +1,7 @@
 import { HttpClient } from "./client";
 import {
   ConnectSttWebSocketOptions,
+  ModelInfo,
   SttMessage,
   SttWebSocketHandlers,
   TranscribeOptions,
@@ -81,6 +82,11 @@ export class SttWebSocket {
 
 export class SttApi {
   constructor(private readonly _http: HttpClient) {}
+
+  /** List available STT models registered in model_management. */
+  async listModels(): Promise<ModelInfo[]> {
+    return this._http.request<ModelInfo[]>("GET", "/v1/speech/stt/models");
+  }
 
   /** Transcribe an audio file. Returns transcription result. */
   async transcribe(audio: Blob | File, options: TranscribeOptions = {}): Promise<TranscribeResult> {

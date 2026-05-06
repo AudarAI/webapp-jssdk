@@ -176,6 +176,16 @@ const client = createAudaraiClient({
 
 ## Text-to-Speech (TTS)
 
+### List Available Models
+
+```typescript
+const models = await client.tts.listModels();
+// → [{ name: 'tts-flash', display_name: 'TTS Flash', kind: 'tts', is_default: false }, ...]
+
+// Use the default for new sessions; let users override via UI
+const defaultModel = models.find((m) => m.is_default)?.name;
+```
+
 ### Synthesize Audio
 
 ```typescript
@@ -229,6 +239,15 @@ await client.tts.deleteSpeaker('my-voice');
 ---
 
 ## Speech-to-Text (STT)
+
+### List Available Models
+
+```typescript
+const models = await client.stt.listModels();
+// → [{ name: 'stt-flash', display_name: 'STT Flash', kind: 'stt', is_default: false }, ...]
+
+const defaultModel = models.find((m) => m.is_default)?.name;
+```
 
 ### Transcribe an Audio File
 

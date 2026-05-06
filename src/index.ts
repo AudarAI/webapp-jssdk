@@ -20,6 +20,7 @@ export type {
   Speaker,
   ListSpeakersResponse,
   SpeakerOperationResponse,
+  ModelInfo,
   WordTimestamp,
   SynthesizeOptions,
   TranscribeOptions,
