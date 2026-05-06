@@ -63,6 +63,17 @@ export interface SpeakerOperationResponse {
   data?: unknown;
 }
 
+export interface ModelInfo {
+  /** Unique handle, e.g. "tts-flash" — pass as `provider` query param. */
+  name: string;
+  /** Human-friendly label for UI (e.g. "TTS Flash"). */
+  display_name: string;
+  /** Capability tag: "tts" | "stt" | "llm" | "mt" | ... */
+  kind: string;
+  /** True for the default row of this kind (used when caller omits `provider`). */
+  is_default: boolean;
+}
+
 export interface WordTimestamp {
   text: string;
   start_time: number;
@@ -105,6 +116,8 @@ export interface TranscribeStreamOptions {
   language?: string;
   /** ASR provider: flash | turbo */
   provider?: string;
+  /** Request word-level timestamps (returned in the final chunk). */
+  forced_alignment?: boolean;
 }
 
 // ── STT SSE stream message types ─────────────────────────────────────────────
@@ -114,6 +127,10 @@ export interface TranscribeStreamChunk {
   language: string;
   is_final: boolean;
   chunk_index: number;
+  /** Present only on the final chunk when forced_alignment was true. */
+  timestamps?: WordTimestamp[];
+  /** Set to "unavailable" when forced_alignment was requested but the model emitted no timestamps. */
+  alignment?: "unavailable";
 }
 
 export interface TranscribeStreamHandlers {
@@ -129,6 +146,8 @@ export interface ConnectSttWebSocketOptions {
   /** ASR provider: flash | turbo */
   provider?: string;
   language?: string;
+  /** Request word-level timestamps on partial/segment/final messages. */
+  forced_alignment?: boolean;
 }
 
 // ── STT WebSocket message types ───────────────────────────────────────────────
@@ -144,6 +163,10 @@ export interface SttPartialMessage {
   text: string;
   language: string;
   segment: number;
+  /** Session-relative word timestamps. Present when forced_alignment was true. */
+  timestamps?: WordTimestamp[];
+  /** Set when forced_alignment was requested but the model emitted no timestamps. */
+  alignment?: "unavailable";
 }
 
 export interface SttSegmentMessage {
@@ -153,6 +176,9 @@ export interface SttSegmentMessage {
   language: string;
   audio_duration: number;
   reason: string;
+  /** Session-relative word timestamps for this segment. */
+  timestamps?: WordTimestamp[];
+  alignment?: "unavailable";
 }
 
 export interface SttFinalMessage {
@@ -160,6 +186,9 @@ export interface SttFinalMessage {
   text: string;
   language: string;
   duration: number;
+  /** Session-relative word timestamps for the entire session. */
+  timestamps?: WordTimestamp[];
+  alignment?: "unavailable";
 }
 
 export interface SttErrorMessage {

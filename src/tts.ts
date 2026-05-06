@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { ListSpeakersResponse, Speaker, SpeakerOperationResponse, SynthesizeOptions } from "./types";
+import { ListSpeakersResponse, ModelInfo, Speaker, SpeakerOperationResponse, SynthesizeOptions } from "./types";
 
 export class TtsApi {
   constructor(private readonly _http: HttpClient) {}
@@ -56,6 +56,11 @@ export class TtsApi {
       query: provider ? { provider } : undefined,
       expectBinary: true,
     });
+  }
+
+  /** List available TTS models registered in model_management. */
+  async listModels(): Promise<ModelInfo[]> {
+    return this._http.request<ModelInfo[]>("GET", "/v1/speech/tts/models");
   }
 
   /** List available voices/speakers. */
