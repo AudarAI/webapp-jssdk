@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import { useMicrophone } from "../composables/useMicrophone";
 import { fmtSize } from "../utils/audio";
-import type { SttWebSocket, SttErrorMessage } from "@audarai/sdk";
+import type { ModelInfo, SttWebSocket, SttErrorMessage } from "@audarai/sdk";
 import LogBox from "./LogBox.vue";
 import DropZone from "./DropZone.vue";
 
@@ -121,6 +121,23 @@ const segmentLogs  = ref<string[]>([]);
 
 let sttWs: SttWebSocket | null = null;
 
+// ── Providers (STT models) ────────────────────────────────────────────────────
+const providerList = ref<ModelInfo[]>([]);
+
+async function listProviders() {
+  try {
+    const list = await client.value!.stt.listModels();
+    providerList.value = list;
+    const def = list.find((m) => m.is_default)?.name ?? "";
+    if (!sttProv.value) sttProv.value = def;
+    if (!wsProv.value)  wsProv.value  = def;
+  } catch (err) {
+    fileLog.logError(err);
+  }
+}
+
+watch(client, (c) => { if (c) listProviders(); }, { immediate: true });
+
 // 麦克风：每帧 PCM 直接转发给 SttWebSocket.sendAudio()
 const mic = useMicrophone((pcm) => sttWs?.sendAudio(pcm));
 
@@ -230,7 +247,10 @@ function cleanup() {
         </div>
         <div class="field">
           <label>provider</label>
-          <input v-model="sttProv" type="text" placeholder="flash / turbo" />
+          <select v-model="sttProv">
+            <option value="">(default)</option>
+            <option v-for="m in providerList" :key="m.name" :value="m.name">{{ m.display_name }}</option>
+          </select>
         </div>
         <div class="field field-check">
           <label>
@@ -272,7 +292,10 @@ function cleanup() {
         </div>
         <div class="field">
           <label>provider</label>
-          <input v-model="wsProv" type="text" placeholder="flash / turbo" />
+          <select v-model="wsProv" :disabled="wsState !== 'idle'">
+            <option value="">(default)</option>
+            <option v-for="m in providerList" :key="m.name" :value="m.name">{{ m.display_name }}</option>
+          </select>
         </div>
         <div class="field field-check">
           <label>

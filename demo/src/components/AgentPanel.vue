@@ -3,7 +3,7 @@ import { ref, watch, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, MessageResponse, SessionResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse } from "@audarai/sdk";
+import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse } from "@audarai/sdk";
 import { Room, RoomEvent, Track, createLocalAudioTrack, setLogLevel, LogLevel, LoggerNames, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
@@ -187,86 +187,6 @@ async function deleteAgent(id: string) {
     await client.value!.agent.deleteAgent(id);
     agents.value = agents.value.filter(a => a.id !== id);
     log("Deleted successfully", "ok");
-    if (chatAgentId.value === id) chatAgentId.value = "";
-  } catch (err) {
-    logError(err);
-  }
-}
-
-// ── Card 2: Chat ───────────────────────────────────────────────────────────────
-const chatAgentId = ref("");
-const chatMessage = ref("Hello");
-const chatVoiceId = ref("");
-const chatSessionId = ref("");
-const chatRoomId = ref("");
-const livekitToken = ref<Record<string, unknown> | null>(null);
-
-async function startChat() {
-  if (!chatAgentId.value) { log("Please select an Agent", "warn"); return; }
-  if (!chatMessage.value.trim()) { log("Please enter a message", "warn"); return; }
-  log(`Starting Chat (agent=${chatAgentId.value})...`, "info");
-  try {
-    const res = await client.value!.agent.createVoiceSession(chatAgentId.value, {
-      message: chatMessage.value,
-      ...(chatVoiceId.value ? { voice_id: chatVoiceId.value } : {}),
-      ...(userName.value ? { user_name: userName.value } : {}),
-      ...(userId.value ? { user_id: userId.value } : {}),
-    });
-    chatSessionId.value = res.session_id;
-    chatRoomId.value = res.room_id;
-    sessionId.value = res.session_id;
-    msgSessionId.value = res.session_id;
-    livekitToken.value = res as unknown as Record<string, unknown>;
-    log(`Chat started — session_id: ${res.session_id}`, "ok");
-    await loadMessages();
-  } catch (err) {
-    logError(err);
-  }
-}
-
-// ── Card 3: Session Management ───────────────────────────────────────────────────────
-const sessionId = ref("");
-const sessionDetail = ref<SessionResponse | null>(null);
-
-async function getSession() {
-  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
-  log(`Fetching Session details: ${sessionId.value}...`, "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.get(sessionId.value);
-    log(`Status: ${sessionDetail.value.status}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
-
-async function pauseSession() {
-  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
-  log("Pausing Session...", "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.pause(sessionId.value);
-    log(`Status updated: ${sessionDetail.value.status}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
-
-async function resumeSession() {
-  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
-  log("Resuming Session...", "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.resume(sessionId.value);
-    log(`Status updated: ${sessionDetail.value.status}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
-
-async function endSession() {
-  if (!sessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
-  log("Ending Session...", "info");
-  try {
-    sessionDetail.value = await client.value!.agent.sessions.end(sessionId.value);
-    log(`Status updated: ${sessionDetail.value.status}`, "ok");
   } catch (err) {
     logError(err);
   }
@@ -275,10 +195,6 @@ async function endSession() {
 // ── Card 4: Messages ────────────────────────────────────────────────────────────
 const msgSessionId = ref("");
 const messages = ref<MessageResponse[]>([]);
-const appendRole = ref("");
-const appendContent = ref("");
-const appendSpeakerType = ref("");
-const appendSpeakerRefId = ref("");
 
 async function loadMessages() {
   if (!msgSessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
@@ -593,24 +509,6 @@ onUnmounted(() => {
   if (_prewarmedRoom) { _prewarmedRoom.removeAllListeners(); _prewarmedRoom = null; }
 });
 
-async function appendMessage() {
-  if (!msgSessionId.value.trim()) { log("Please enter session_id", "warn"); return; }
-  if (!appendContent.value.trim()) { log("Please enter message content", "warn"); return; }
-  log("Appending message...", "info");
-  try {
-    const msg = await client.value!.agent.sessions.appendMessage(msgSessionId.value, {
-      role: appendRole.value || undefined,
-      content: appendContent.value,
-      speaker_type: appendSpeakerType.value || undefined,
-      speaker_ref_id: appendSpeakerRefId.value || undefined,
-    });
-    messages.value.push(msg);
-    appendContent.value = "";
-    log(`Message appended: ${msg.id}`, "ok");
-  } catch (err) {
-    logError(err);
-  }
-}
 </script>
 
 <template>
@@ -845,68 +743,6 @@ async function appendMessage() {
       </div>
     </div>
 
-    <!-- Card 2: Chat -->
-    <div class="card">
-      <h3>Chat (Start a Quick Session)</h3>
-      <div class="row">
-        <div class="field">
-          <label>Select Agent</label>
-          <select v-model="chatAgentId">
-            <option value="">— Fetch list first —</option>
-            <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
-          </select>
-        </div>
-        <div class="field" style="flex:2">
-          <label>Message</label>
-          <input v-model="chatMessage" type="text" placeholder="Hello" />
-        </div>
-        <div class="field">
-          <label>voice_id (optional override)</label>
-          <select v-model="chatVoiceId">
-            <option value="">— Use Agent default —</option>
-            <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
-          </select>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" @click="startChat">Start Chat</button>
-      </div>
-
-      <div v-if="chatSessionId" class="result-box">
-        <div><strong>session_id:</strong> {{ chatSessionId }}</div>
-        <div><strong>room_id:</strong> {{ chatRoomId }}</div>
-      </div>
-
-      <div v-if="livekitToken" class="result-box">
-        <pre>{{ JSON.stringify(livekitToken, null, 2) }}</pre>
-      </div>
-
-      <LogBox :entries="entries" />
-    </div>
-
-    <!-- Card 3: Session Management -->
-    <div class="card">
-      <h3>Session Management</h3>
-      <div class="row">
-        <div class="field" style="flex:3">
-          <label>session_id</label>
-          <input v-model="sessionId" type="text" placeholder="Auto-filled from Chat, or enter manually" />
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-outline" @click="getSession">Get Details</button>
-        <button class="btn btn-outline" @click="pauseSession">Pause</button>
-        <button class="btn btn-outline" @click="resumeSession">Resume</button>
-        <button class="btn btn-danger"  @click="endSession">End</button>
-      </div>
-
-      <div v-if="sessionDetail" class="result-box">
-        <div><strong>id:</strong> {{ sessionDetail.id }}</div>
-        <div><strong>room_id:</strong> {{ sessionDetail.room_id }}</div>
-        <div><strong>status:</strong> <span :class="`status-${sessionDetail.status}`">{{ sessionDetail.status }}</span></div>
-        <div><strong>created_at:</strong> {{ new Date(sessionDetail.created_at).toLocaleString() }}</div>
-      </div>
-    </div>
     <!-- Card 5: 语音对话 -->
     <div class="card">
       <h3>Voice Chat</h3>
@@ -1034,33 +870,6 @@ async function appendMessage() {
         </div>
       </div>
 
-      <div class="sub-section">
-        <h4>Append Message</h4>
-        <div class="row">
-          <div class="field">
-            <label>role (optional)</label>
-            <select v-model="appendRole">
-              <option value="">—</option>
-              <option value="user">user</option>
-              <option value="assistant">assistant</option>
-              <option value="system">system</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>speaker_type (optional)</label>
-            <input v-model="appendSpeakerType" type="text" placeholder="human / agent / system" />
-          </div>
-          <div class="field">
-            <label>speaker_ref_id (optional)</label>
-            <input v-model="appendSpeakerRefId" type="text" placeholder="Agent UUID etc." />
-          </div>
-        </div>
-        <div class="field">
-          <label>content</label>
-          <textarea v-model="appendContent" rows="2" placeholder="Message content" />
-        </div>
-        <button class="btn btn-primary" @click="appendMessage">Append Message</button>
-      </div>
     </div>
 
     <LogBox :entries="entries" />
