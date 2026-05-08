@@ -1,6 +1,6 @@
 {
   "name": "@audarai/sdk",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "AudarAI JavaScript/TypeScript SDK for TTS, STT, and Translation APIs",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

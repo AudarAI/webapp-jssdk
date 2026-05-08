@@ -46,15 +46,36 @@ export interface AudaraiClientConfig {
   livekitUrl?: string;
 }
 
+export interface VoiceMetadata {
+  gender?: string;
+  language?: string;
+  accent?: string;
+  tone?: string;
+  duration_s?: number;
+  expression_tags?: string[];
+  original_profile_id?: string;
+  sample_file?: string;
+  [key: string]: unknown;
+}
+
 export interface Speaker {
   name: string;
   description?: string;
   reference_text?: string;
+  /** Codecs for which encoded reference frames are stored on the server. */
+  available_codecs?: string[];
+  /** Per-codec count of stored reference frames. */
+  num_codes?: Record<string, number>;
+  /** Free-form per-voice metadata (gender, language, expression_tags, ...). */
+  metadata?: VoiceMetadata;
+  /** TTS model names this voice may be selected with (model_management `name`). */
+  compatible_models?: string[];
 }
 
 export interface ListSpeakersResponse {
   speakers: Speaker[];
   count?: number | null;
+  details?: Record<string, unknown> | null;
 }
 
 export interface SpeakerOperationResponse {

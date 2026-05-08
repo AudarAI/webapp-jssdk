@@ -1,5 +1,12 @@
 import { HttpClient } from "./client";
-import { ListSpeakersResponse, ModelInfo, Speaker, SpeakerOperationResponse, SynthesizeOptions } from "./types";
+import {
+  ListSpeakersResponse,
+  ModelInfo,
+  Speaker,
+  SpeakerOperationResponse,
+  SynthesizeOptions,
+  VoiceMetadata,
+} from "./types";
 
 export class TtsApi {
   constructor(private readonly _http: HttpClient) {}
@@ -63,27 +70,72 @@ export class TtsApi {
     return this._http.request<ModelInfo[]>("GET", "/v1/speech/tts/models");
   }
 
-  /** List available voices/speakers. */
+  /** List available voices/speakers (names only, kept for backward compatibility). */
   async listSpeakers(): Promise<string[]> {
     const res = await this._http.request<ListSpeakersResponse>("GET", "/v1/speech/audio/speakers");
     return res.speakers.map((s) => s.name);
   }
 
   /**
+   * List voices/speakers with full per-voice payload (description, metadata,
+   * compatible_models, ...).
+   *
+   * @param modelName - When set, returns only voices whose
+   *   `compatible_models` list contains this TTS model name (e.g.
+   *   `"tts-pro-xpression-v1"`).
+   */
+  async listSpeakersDetailed(modelName?: string): Promise<Speaker[]> {
+    const res = await this._http.request<ListSpeakersResponse>(
+      "GET",
+      "/v1/speech/audio/speakers",
+      { query: modelName ? { model: modelName } : undefined },
+    );
+    return res.speakers ?? [];
+  }
+
+  /**
    * Upload a custom speaker voice profile.
    * @param transcript - Required reference text for the audio recording.
+   * @param options.compatibleModels - TTS model names this voice can be used
+   *   with (e.g. `["tts-flash", "tts-turbo"]`). When omitted the server stores
+   *   an empty list; the lifespan backfill only fires at boot, so production
+   *   callers should always pass this for new voices.
+   * @param options.metadata - Free-form per-voice metadata. Sent as flat
+   *   form fields when present.
    */
   async addSpeaker(
     name: string,
     audioFile: Blob | File,
     transcript: string,
-    options: { description?: string } = {}
+    options: {
+      description?: string;
+      compatibleModels?: string[];
+      metadata?: VoiceMetadata;
+    } = {}
   ): Promise<SpeakerOperationResponse> {
     const form = new FormData();
     form.append("name", name);
     form.append("audio_file", audioFile);
     form.append("transcript", transcript);
     if (options.description) form.append("description", options.description);
+    if (options.compatibleModels && options.compatibleModels.length > 0) {
+      form.append("compatible_models", options.compatibleModels.join(","));
+    }
+    const m = options.metadata;
+    if (m) {
+      if (m.gender)               form.append("gender", m.gender);
+      if (m.language)             form.append("language", m.language);
+      if (m.accent)               form.append("accent", m.accent);
+      if (m.tone)                 form.append("tone", m.tone);
+      if (m.duration_s !== undefined && m.duration_s !== null) {
+        form.append("duration_s", String(m.duration_s));
+      }
+      if (m.expression_tags && m.expression_tags.length > 0) {
+        form.append("expression_tags", m.expression_tags.join(","));
+      }
+      if (m.original_profile_id)  form.append("original_profile_id", m.original_profile_id);
+      if (m.sample_file)          form.append("sample_file", m.sample_file);
+    }
     return this._http.request<SpeakerOperationResponse>("POST", "/v1/speech/audio/speakers", {
       body: form,
     });
