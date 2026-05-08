@@ -3,7 +3,7 @@ import { ref, watch, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse } from "@audarai/sdk";
+import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse, ModelInfo } from "@audarai/sdk";
 import { Room, RoomEvent, Track, createLocalAudioTrack, setLogLevel, LogLevel, LoggerNames, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
@@ -17,20 +17,26 @@ const skillList      = ref<SkillResponse[]>([]);
 const knowledgeList  = ref<KnowledgeResponse[]>([]);
 const toolList       = ref<ToolResponse[]>([]);
 const voiceList      = ref<string[]>([]);
+const sttModelList   = ref<ModelInfo[]>([]);
+const ttsModelList   = ref<ModelInfo[]>([]);
 
 async function loadDropdownData() {
   if (!client.value) return;
   try {
-    const [skills, knowledge, tools, voices] = await Promise.all([
+    const [skills, knowledge, tools, voices, sttModels, ttsModels] = await Promise.all([
       client.value.agent.skills.list(),
       client.value.agent.knowledge.list(),
       client.value.agent.tools.list(),
       client.value.tts.listSpeakers(),
+      client.value.stt.listModels().catch(() => [] as ModelInfo[]),
+      client.value.tts.listModels().catch(() => [] as ModelInfo[]),
     ]);
     skillList.value     = skills;
     knowledgeList.value = knowledge;
     toolList.value      = tools;
     voiceList.value     = voices;
+    sttModelList.value  = sttModels;
+    ttsModelList.value  = ttsModels;
   } catch (err) {
     logError(err);
   }
@@ -44,6 +50,8 @@ const newAgent = ref({
   role: "",
   language: "",
   archetype_id: "",
+  stt_model: "",
+  tts_model: "",
   is_public: false,
   skills: [] as string[],
   knowledge_bindings: [] as string[],
@@ -89,6 +97,8 @@ async function createAgent() {
       role: newAgent.value.role || undefined,
       language: newAgent.value.language || undefined,
       archetype_id: newAgent.value.archetype_id || undefined,
+      stt_model: newAgent.value.stt_model || undefined,
+      tts_model: newAgent.value.tts_model || undefined,
       is_public: newAgent.value.is_public,
       skills: newAgent.value.skills.length ? newAgent.value.skills : undefined,
       knowledge_bindings: newAgent.value.knowledge_bindings.length ? newAgent.value.knowledge_bindings : undefined,
@@ -102,7 +112,7 @@ async function createAgent() {
     });
     agents.value.push(created);
     log(`Agent created successfully: ${created.id}`, "ok");
-    newAgent.value = { name: "", description: "", system_prompt: "", voice_id: "", role: "", language: "", archetype_id: "", is_public: false, skills: [], knowledge_bindings: [], tool_bindings: [], memory_enable: false, memory_turns: "" };
+    newAgent.value = { name: "", description: "", system_prompt: "", voice_id: "", role: "", language: "", archetype_id: "", stt_model: "", tts_model: "", is_public: false, skills: [], knowledge_bindings: [], tool_bindings: [], memory_enable: false, memory_turns: "" };
   } catch (err) {
     logError(err);
   }
@@ -118,6 +128,8 @@ const editForm = ref({
   role: "",
   language: "",
   archetype_id: "",
+  stt_model: "",
+  tts_model: "",
   is_public: false,
   skills: [] as string[],
   knowledge_bindings: [] as string[],
@@ -136,6 +148,8 @@ function startEdit(a: AgentResponse) {
     role: a.role ?? "",
     language: a.language ?? "",
     archetype_id: a.archetype_id ?? "",
+    stt_model: a.stt_model ?? "",
+    tts_model: a.tts_model ?? "",
     is_public: a.is_public,
     skills: [...a.skills],
     knowledge_bindings: [...a.knowledge_bindings],
@@ -161,6 +175,8 @@ async function saveEdit() {
       role: editForm.value.role || undefined,
       language: editForm.value.language || undefined,
       archetype_id: editForm.value.archetype_id || undefined,
+      stt_model: editForm.value.stt_model || undefined,
+      tts_model: editForm.value.tts_model || undefined,
       is_public: editForm.value.is_public,
       skills: editForm.value.skills.length ? editForm.value.skills : undefined,
       knowledge_bindings: editForm.value.knowledge_bindings.length ? editForm.value.knowledge_bindings : undefined,
@@ -551,6 +567,8 @@ onUnmounted(() => {
             <th>Name</th>
             <th>Language</th>
             <th>voice_id</th>
+            <th>stt_model</th>
+            <th>tts_model</th>
             <th>role</th>
             <th>skills</th>
             <th>knowledge</th>
@@ -566,6 +584,8 @@ onUnmounted(() => {
             <td>{{ agent.name }}</td>
             <td>{{ agent.language ?? "—" }}</td>
             <td>{{ agent.voice_id ?? "—" }}</td>
+            <td>{{ agent.stt_model ?? "—" }}</td>
+            <td>{{ agent.tts_model ?? "—" }}</td>
             <td>{{ agent.role ?? "—" }}</td>
             <td>{{ agent.skills.length }}</td>
             <td>{{ agent.knowledge_bindings.length }}</td>
@@ -597,6 +617,28 @@ onUnmounted(() => {
             <select v-model="editForm.voice_id">
               <option value="">— Not Set —</option>
               <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>stt_model</label>
+            <small class="field-tip">STT model handle. Falls back to tenant/system default when not set.</small>
+            <select v-model="editForm.stt_model">
+              <option value="">— Default —</option>
+              <option v-for="m in sttModelList" :key="m.name" :value="m.name">
+                {{ m.display_name }} ({{ m.name }}){{ m.is_default ? " · default" : "" }}
+              </option>
+            </select>
+          </div>
+          <div class="field">
+            <label>tts_model</label>
+            <small class="field-tip">TTS model handle. Falls back to tenant/system default when not set.</small>
+            <select v-model="editForm.tts_model">
+              <option value="">— Default —</option>
+              <option v-for="m in ttsModelList" :key="m.name" :value="m.name">
+                {{ m.display_name }} ({{ m.name }}){{ m.is_default ? " · default" : "" }}
+              </option>
             </select>
           </div>
         </div>
@@ -679,6 +721,28 @@ onUnmounted(() => {
             <select v-model="newAgent.voice_id">
               <option value="">— Not Set —</option>
               <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>stt_model</label>
+            <small class="field-tip">STT model handle. Falls back to tenant/system default when not set.</small>
+            <select v-model="newAgent.stt_model">
+              <option value="">— Default —</option>
+              <option v-for="m in sttModelList" :key="m.name" :value="m.name">
+                {{ m.display_name }} ({{ m.name }}){{ m.is_default ? " · default" : "" }}
+              </option>
+            </select>
+          </div>
+          <div class="field">
+            <label>tts_model</label>
+            <small class="field-tip">TTS model handle. Falls back to tenant/system default when not set.</small>
+            <select v-model="newAgent.tts_model">
+              <option value="">— Default —</option>
+              <option v-for="m in ttsModelList" :key="m.name" :value="m.name">
+                {{ m.display_name }} ({{ m.name }}){{ m.is_default ? " · default" : "" }}
+              </option>
             </select>
           </div>
         </div>
