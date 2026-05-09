@@ -148,4 +148,17 @@ export class TtsApi {
       `/v1/speech/audio/speakers/${encodeURIComponent(name)}`,
     );
   }
+
+  /**
+   * Fetch a speaker's stored reference audio as a Blob.
+   * Useful for inline playback in voice management UIs.
+   */
+  async getSpeakerAudio(name: string): Promise<Blob> {
+    const res = await this._http.request<Response>(
+      "GET",
+      `/v1/speech/audio/speakers/${encodeURIComponent(name)}/audio`,
+      { expectBinary: true },
+    );
+    return res.blob();
+  }
 }

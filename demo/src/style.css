@@ -232,6 +232,10 @@ textarea { resize: vertical; margin-bottom: 12px; }
 }
 .speaker-chip:hover    { border-color: #1a73e8; background: #f0f4ff; color: #1a73e8; }
 .speaker-chip.selected { border-color: #1a73e8; background: #1a73e8; color: #fff; }
+.speaker-chip.playing  { border-color: #1a73e8; background: #e6f0ff; color: #1a73e8; }
+.speaker-chip[disabled] { opacity: .6; cursor: progress; }
+.speaker-chip-icon { display: inline-block; margin-right: 6px; font-size: 11px; }
+button.speaker-chip { font-family: inherit; line-height: 1.2; }
 
 /* ── Protocol info ── */
 .proto-info {

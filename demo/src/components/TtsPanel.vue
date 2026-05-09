@@ -54,6 +54,43 @@ const audioSrc      = ref("");
 const loading       = ref(false);
 const audioEl       = ref<HTMLAudioElement | null>(null);
 
+// ── Reference audio playback (test for getSpeakerAudio) ───────────────────────
+const playingSpeaker       = ref<string | null>(null);
+const speakerAudioLoading  = ref<string | null>(null);
+
+async function playSpeakerAudio(name: string) {
+  if (!client.value) return;
+  if (playingSpeaker.value === name && audioEl.value && !audioEl.value.paused) {
+    audioEl.value.pause();
+    playingSpeaker.value = null;
+    return;
+  }
+  speakerAudioLoading.value = name;
+  log(`Fetching reference audio for "${name}"...`, "info");
+  try {
+    const blob = await client.value.tts.getSpeakerAudio(name);
+    log(`Got reference audio: ${fmtSize(blob.size)} (${blob.type || "unknown"})`, "ok");
+    if (audioSrc.value) URL.revokeObjectURL(audioSrc.value);
+    audioSrc.value = URL.createObjectURL(blob);
+    await nextTick();
+    const el = audioEl.value;
+    if (el) {
+      const onEnded = () => {
+        playingSpeaker.value = null;
+        el.removeEventListener("ended", onEnded);
+      };
+      el.addEventListener("ended", onEnded);
+      await el.play();
+      playingSpeaker.value = name;
+    }
+  } catch (err) {
+    playingSpeaker.value = null;
+    logError(err);
+  } finally {
+    speakerAudioLoading.value = null;
+  }
+}
+
 // ── Providers (TTS models) ────────────────────────────────────────────────────
 const providerList = ref<ModelInfo[]>([]);
 
@@ -233,10 +270,26 @@ async function synthesizeStream() {
         </button>
       </div>
       <div v-if="speakers.length" class="speaker-grid">
-        <span v-for="s in speakers" :key="s.name" class="speaker-chip" :title="s.description ?? ''">
+        <button
+          v-for="s in speakers"
+          :key="s.name"
+          type="button"
+          class="speaker-chip"
+          :class="{ playing: playingSpeaker === s.name }"
+          :title="s.description ?? ''"
+          :disabled="speakerAudioLoading === s.name"
+          @click="playSpeakerAudio(s.name)"
+        >
+          <span class="speaker-chip-icon">{{
+            speakerAudioLoading === s.name ? '…' :
+            playingSpeaker === s.name ? '⏸' : '▶'
+          }}</span>
           {{ speakerLabel(s) }}
-        </span>
+        </button>
       </div>
+      <small v-if="speakers.length" style="color: #888; font-size: 0.85em; display: block; margin-top: 6px">
+        Click a chip to test <code>getSpeakerAudio()</code>.
+      </small>
       <div v-else-if="!speakersLoading" style="color: #888; font-size: 0.9em; margin-top: 8px">
         No speakers compatible with the selected provider.
       </div>
