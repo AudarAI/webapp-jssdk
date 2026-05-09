@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
-import type { ModelInfo } from "@audarai/sdk";
+import { computed, nextTick, ref, watch } from "vue";
+import type { ModelInfo, Speaker } from "@audarai/sdk";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import { bufferToObjectUrl, downloadBuffer, fmtSize } from "../utils/audio";
@@ -10,19 +10,37 @@ const { client } = useClient();
 const { entries, log, clear, logError } = useLog();
 
 // ── Speakers ──────────────────────────────────────────────────────────────────
-const speakerNames  = ref<string[]>([]);
+// SDK 0.3.0+: use listSpeakersDetailed(provider) so we get metadata +
+// compatible_models filtering. Falls back to "all speakers" when no provider
+// is selected (default model).
+const speakers = ref<Speaker[]>([]);
+const speakersLoading = ref(false);
 
-async function listSpeakers() {
-  clear();
-  log("Fetching speaker list...", "info");
+async function refreshSpeakers(opts: { silent?: boolean } = {}) {
+  if (!client.value) return;
+  speakersLoading.value = true;
+  if (!opts.silent) log(`Fetching speakers for provider=${synthProvider.value || "(default)"}...`, "info");
   try {
-    const list = await client.value!.tts.listSpeakers();
-    console.log(list)
-    speakerNames.value = list;
-    log(`Found ${speakerNames.value.length} speakers`, "ok");
+    const list = await client.value.tts.listSpeakersDetailed(synthProvider.value || undefined);
+    speakers.value = list;
+    if (!opts.silent) log(`Found ${list.length} speakers`, "ok");
+    // Re-anchor the voice selector to a valid name when the new list does
+    // not contain the previously selected voice.
+    const names = list.map((s) => s.name);
+    if (!names.includes(voice.value)) {
+      voice.value = names[0] ?? "";
+    }
   } catch (err) {
     logError(err);
+  } finally {
+    speakersLoading.value = false;
   }
+}
+
+// Manual button handler for the legacy "Fetch Speakers" UX.
+async function listSpeakers() {
+  clear();
+  await refreshSpeakers();
 }
 
 // ── Synthesize ────────────────────────────────────────────────────────────────
@@ -51,7 +69,29 @@ async function listProviders() {
   }
 }
 
-watch(client, (c) => { if (c) listProviders(); }, { immediate: true });
+watch(client, (c) => {
+  if (!c) return;
+  // First load: pick a default provider, then pull speakers compatible with it.
+  listProviders().then(() => refreshSpeakers({ silent: true }));
+}, { immediate: true });
+
+// Auto-refresh speakers when the user switches TTS provider so the voice
+// dropdown only shows voices compatible with the selected model.
+watch(synthProvider, (next, prev) => {
+  if (next === prev) return;
+  refreshSpeakers({ silent: true });
+});
+
+// Helper for chip/option labels: include 1-2 metadata hints when available.
+function speakerLabel(s: Speaker): string {
+  const m = s.metadata ?? {};
+  const bits: string[] = [];
+  if (m.language) bits.push(String(m.language));
+  if (m.tone) bits.push(String(m.tone));
+  return bits.length ? `${s.name} · ${bits.join(" / ")}` : s.name;
+}
+
+const speakerNames = computed(() => speakers.value.map((s) => s.name));
 
 function buildOpts() {
   return {
@@ -181,12 +221,24 @@ async function synthesizeStream() {
   <div>
     <!-- Speakers -->
     <div class="card">
-      <h3>Speaker List</h3>
+      <h3>
+        Speaker List
+        <small v-if="synthProvider" style="font-weight: normal; color: #888">
+          — filtered by provider <code>{{ synthProvider }}</code>
+        </small>
+      </h3>
       <div class="row">
-        <button class="btn btn-outline" @click="listSpeakers">Fetch Speakers</button>
+        <button class="btn btn-outline" :disabled="speakersLoading" @click="listSpeakers">
+          {{ speakersLoading ? "Fetching..." : "Fetch Speakers" }}
+        </button>
       </div>
-      <div v-if="speakerNames.length" class="speaker-grid">
-        <span v-for="name in speakerNames" :key="name" class="speaker-chip">{{ name }}</span>
+      <div v-if="speakers.length" class="speaker-grid">
+        <span v-for="s in speakers" :key="s.name" class="speaker-chip" :title="s.description ?? ''">
+          {{ speakerLabel(s) }}
+        </span>
+      </div>
+      <div v-else-if="!speakersLoading" style="color: #888; font-size: 0.9em; margin-top: 8px">
+        No speakers compatible with the selected provider.
       </div>
     </div>
 
@@ -199,7 +251,8 @@ async function synthesizeStream() {
         <div class="field">
           <label>voice</label>
           <select v-model="voice">
-            <option v-for="name in speakerNames" :key="name" :value="name">{{ name }}</option>
+            <option v-if="!speakers.length" value="">(no compatible voice)</option>
+            <option v-for="s in speakers" :key="s.name" :value="s.name">{{ speakerLabel(s) }}</option>
           </select>
         </div>
         <div class="field">
