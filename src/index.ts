@@ -3,6 +3,7 @@ export { RelayAuth } from "./auth";
 export type { RelayAuthConfig, AuthStorage, TokenSet } from "./auth";
 export { TtsApi } from "./tts";
 export { SttApi, SttWebSocket } from "./stt";
+export { LlmApi } from "./llm";
 export { TranslationApi, TranslationWebSocket } from "./translation";
 export { AgentApi } from "./agent";
 export { KnowledgeApi } from "./knowledge";
@@ -122,6 +123,7 @@ export { AudaraiError, AuthenticationError, InsufficientBalanceError, RateLimite
 import { AudaraiClient } from "./client";
 import { TtsApi } from "./tts";
 import { SttApi } from "./stt";
+import { LlmApi } from "./llm";
 import { TranslationApi } from "./translation";
 import { AgentApi } from "./agent";
 import { KnowledgeApi } from "./knowledge";
@@ -153,6 +155,7 @@ import type { AudaraiClientConfig } from "./types";
 export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient & {
   tts: TtsApi;
   stt: SttApi;
+  llm: LlmApi;
   translation: TranslationApi;
   agent: AgentApi;
   knowledge: KnowledgeApi;
@@ -163,6 +166,7 @@ export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient 
   const client = new AudaraiClient(config) as AudaraiClient & {
     tts: TtsApi;
     stt: SttApi;
+    llm: LlmApi;
     translation: TranslationApi;
     agent: AgentApi;
     knowledge: KnowledgeApi;
@@ -172,6 +176,7 @@ export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient 
   };
   client.tts = new TtsApi(client.http);
   client.stt = new SttApi(client.http);
+  client.llm = new LlmApi(client.http);
   client.translation = new TranslationApi(client.http);
   client.agent = new AgentApi(client.http);
   client.knowledge = new KnowledgeApi(client.http);

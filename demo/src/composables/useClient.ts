@@ -1,10 +1,11 @@
 import { shallowRef, ref, readonly, markRaw } from "vue";
 import { createAudaraiClient, type AudaraiClientConfig } from "@audarai/sdk";
-import type { AudaraiClient, TtsApi, SttApi, TranslationApi, AgentApi, KnowledgeApi, ToolApi, SkillApi, ArchetypeApi } from "@audarai/sdk";
+import type { AudaraiClient, TtsApi, SttApi, LlmApi, TranslationApi, AgentApi, KnowledgeApi, ToolApi, SkillApi, ArchetypeApi } from "@audarai/sdk";
 
 export type ConnectedClient = AudaraiClient & {
   tts: TtsApi;
   stt: SttApi;
+  llm: LlmApi;
   translation: TranslationApi;
   agent: AgentApi;
   knowledge: KnowledgeApi;

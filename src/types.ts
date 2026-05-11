@@ -452,6 +452,8 @@ export interface AgentCreate {
   stt_model?: string;
   /** TTS model handle (e.g. "tts-flash"). Falls back to tenant/system default when omitted. */
   tts_model?: string;
+  /** LLM model handle. Falls back to tenant/system default when omitted. */
+  llm_model?: string;
   /** Skill UUIDs to bind to this agent. */
   skills?: string[];
   /** Knowledge UUIDs to bind to this agent. */
@@ -476,6 +478,7 @@ export interface AgentUpdate {
   role?: string;
   stt_model?: string;
   tts_model?: string;
+  llm_model?: string;
   skills?: string[];
   knowledge_bindings?: string[];
   channel_bindings?: string[];
@@ -500,6 +503,7 @@ export interface AgentResponse {
   role: string | null;
   stt_model: string | null;
   tts_model: string | null;
+  llm_model: string | null;
   skills: string[];
   knowledge_bindings: string[];
   channel_bindings: string[];
