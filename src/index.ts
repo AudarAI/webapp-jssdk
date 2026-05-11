@@ -18,6 +18,7 @@ export type {
   AudaraiClientConfig,
   TokenData,
   Speaker,
+  VoiceMetadata,
   ListSpeakersResponse,
   SpeakerOperationResponse,
   ModelInfo,

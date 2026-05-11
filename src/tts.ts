@@ -150,6 +150,72 @@ export class TtsApi {
   }
 
   /**
+   * Update a speaker's description, metadata and/or compatible_models without
+   * touching the stored reference audio or codes. Any field left ``undefined``
+   * is preserved server-side. Pass ``description: ""`` to clear it.
+   */
+  async updateSpeaker(
+    name: string,
+    patch: {
+      description?: string | null;
+      compatibleModels?: string[];
+      metadata?: VoiceMetadata;
+    },
+  ): Promise<SpeakerOperationResponse> {
+    const body: Record<string, unknown> = {};
+    if (patch.description !== undefined) body.description = patch.description;
+    if (patch.compatibleModels !== undefined)
+      body.compatible_models = patch.compatibleModels;
+    if (patch.metadata !== undefined) body.metadata = patch.metadata;
+    return this._http.request<SpeakerOperationResponse>(
+      "PATCH",
+      `/v1/speech/audio/speakers/${encodeURIComponent(name)}`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  /**
+   * Rename a speaker. The server rejects the call if ``newName`` is already
+   * taken. External references to the old name (e.g. saved playgrounds) need
+   * to be updated separately.
+   */
+  async renameSpeaker(
+    name: string,
+    newName: string,
+  ): Promise<SpeakerOperationResponse> {
+    return this._http.request<SpeakerOperationResponse>(
+      "POST",
+      `/v1/speech/audio/speakers/${encodeURIComponent(name)}/rename`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_name: newName }),
+      },
+    );
+  }
+
+  /**
+   * Replace a speaker's reference audio + transcript. The server re-encodes
+   * codes for every registered codec.
+   */
+  async replaceSpeakerAudio(
+    name: string,
+    audioFile: Blob | File,
+    transcript: string,
+  ): Promise<SpeakerOperationResponse> {
+    const form = new FormData();
+    form.append("audio_file", audioFile);
+    form.append("transcript", transcript);
+    return this._http.request<SpeakerOperationResponse>(
+      "PUT",
+      `/v1/speech/audio/speakers/${encodeURIComponent(name)}/audio`,
+      { body: form },
+    );
+  }
+
+  /**
    * Fetch a speaker's stored reference audio as a Blob.
    * Useful for inline playback in voice management UIs.
    */

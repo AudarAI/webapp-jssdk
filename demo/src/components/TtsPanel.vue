@@ -91,6 +91,160 @@ async function playSpeakerAudio(name: string) {
   }
 }
 
+// ── Edit / rename / replace audio (SDK 0.5.0+) ────────────────────────────────
+const editTarget = ref<string>("");
+const editDesc = ref<string>("");
+const editGender = ref<string>("");
+const editLanguage = ref<string>("");
+const editAccent = ref<string>("");
+const editTone = ref<string>("");
+const editDuration = ref<string>("");
+const editTags = ref<string>("");
+const editCompat = ref<Set<string>>(new Set());
+const editRenameTo = ref<string>("");
+const editReplaceFile = ref<File | null>(null);
+const editReplaceTranscript = ref<string>("");
+const editSaving = ref(false);
+
+const editSpeaker = computed<Speaker | null>(() =>
+  speakers.value.find((s) => s.name === editTarget.value) ?? null,
+);
+
+function hydrateEditForm(s: Speaker | null) {
+  editDesc.value = s?.description ?? "";
+  const m = s?.metadata ?? {};
+  editGender.value = (m.gender as string | undefined) ?? "";
+  editLanguage.value = (m.language as string | undefined) ?? "";
+  editAccent.value = (m.accent as string | undefined) ?? "";
+  editTone.value = (m.tone as string | undefined) ?? "";
+  editDuration.value =
+    typeof m.duration_s === "number" ? String(m.duration_s) : "";
+  editTags.value = ((m.expression_tags as string[] | undefined) ?? []).join(", ");
+  editCompat.value = new Set(s?.compatible_models ?? []);
+  editRenameTo.value = s?.name ?? "";
+  editReplaceFile.value = null;
+  editReplaceTranscript.value = "";
+}
+
+// Re-seed the form whenever the selected target (or the underlying list) changes.
+watch(editSpeaker, (s) => hydrateEditForm(s), { immediate: true });
+// When the speaker list refreshes, default the edit target to the currently
+// chosen voice (or the first speaker available).
+watch(speakers, (list) => {
+  if (!list.length) {
+    editTarget.value = "";
+    return;
+  }
+  if (!list.some((s) => s.name === editTarget.value)) {
+    editTarget.value = voice.value && list.some((s) => s.name === voice.value)
+      ? voice.value
+      : list[0].name;
+  }
+});
+
+function toggleEditCompat(name: string) {
+  const next = new Set(editCompat.value);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
+  editCompat.value = next;
+}
+
+function buildMetadataFromForm() {
+  const tags = editTags.value
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  const duration = editDuration.value.trim()
+    ? Number(editDuration.value.trim())
+    : undefined;
+  return {
+    gender: editGender.value.trim() || undefined,
+    language: editLanguage.value.trim() || undefined,
+    accent: editAccent.value.trim() || undefined,
+    tone: editTone.value.trim() || undefined,
+    duration_s: duration != null && !Number.isNaN(duration) ? duration : undefined,
+    expression_tags: tags.length > 0 ? tags : undefined,
+  };
+}
+
+async function saveSpeakerEdits() {
+  if (!client.value || !editSpeaker.value) return;
+  const name = editSpeaker.value.name;
+  editSaving.value = true;
+  log(`Patching speaker "${name}" (description/metadata/compatible_models)...`, "info");
+  try {
+    const res = await client.value.tts.updateSpeaker(name, {
+      description: editDesc.value,
+      compatibleModels: Array.from(editCompat.value),
+      metadata: buildMetadataFromForm(),
+    });
+    log(`updateSpeaker: ${res.message}`, res.success ? "ok" : "warn");
+    await refreshSpeakers({ silent: true });
+  } catch (err) {
+    logError(err);
+  } finally {
+    editSaving.value = false;
+  }
+}
+
+async function renameSelectedSpeaker() {
+  if (!client.value || !editSpeaker.value) return;
+  const from = editSpeaker.value.name;
+  const to = editRenameTo.value.trim();
+  if (!to || to === from) {
+    log("Rename: new name is empty or unchanged", "warn");
+    return;
+  }
+  editSaving.value = true;
+  log(`Renaming "${from}" → "${to}"...`, "info");
+  try {
+    const res = await client.value.tts.renameSpeaker(from, to);
+    log(`renameSpeaker: ${res.message}`, res.success ? "ok" : "warn");
+    await refreshSpeakers({ silent: true });
+    if (res.success) {
+      editTarget.value = to;
+      if (voice.value === from) voice.value = to;
+    }
+  } catch (err) {
+    logError(err);
+  } finally {
+    editSaving.value = false;
+  }
+}
+
+function handleReplaceFile(e: Event) {
+  const input = e.target as HTMLInputElement;
+  editReplaceFile.value = input.files?.[0] ?? null;
+}
+
+async function replaceSelectedAudio() {
+  if (!client.value || !editSpeaker.value) return;
+  const name = editSpeaker.value.name;
+  if (!editReplaceFile.value || !editReplaceTranscript.value.trim()) {
+    log("Replace audio: pick a file and supply a transcript first", "warn");
+    return;
+  }
+  editSaving.value = true;
+  log(`Replacing reference audio for "${name}"...`, "info");
+  try {
+    const res = await client.value.tts.replaceSpeakerAudio(
+      name,
+      editReplaceFile.value,
+      editReplaceTranscript.value.trim(),
+    );
+    log(`replaceSpeakerAudio: ${res.message}`, res.success ? "ok" : "warn");
+    await refreshSpeakers({ silent: true });
+    if (res.success) {
+      editReplaceFile.value = null;
+      editReplaceTranscript.value = "";
+    }
+  } catch (err) {
+    logError(err);
+  } finally {
+    editSaving.value = false;
+  }
+}
+
 // ── Providers (TTS models) ────────────────────────────────────────────────────
 const providerList = ref<ModelInfo[]>([]);
 
@@ -292,6 +446,95 @@ async function synthesizeStream() {
       </small>
       <div v-else-if="!speakersLoading" style="color: #888; font-size: 0.9em; margin-top: 8px">
         No speakers compatible with the selected provider.
+      </div>
+    </div>
+
+    <!-- Edit speaker (SDK 0.5.0+) -->
+    <div class="card">
+      <h3>Edit Speaker <small style="font-weight: normal; color: #888">— exercise updateSpeaker / renameSpeaker / replaceSpeakerAudio</small></h3>
+
+      <div class="row">
+        <div class="field">
+          <label>Target speaker</label>
+          <select v-model="editTarget" :disabled="!speakers.length">
+            <option v-if="!speakers.length" value="">(no speakers)</option>
+            <option v-for="s in speakers" :key="s.name" :value="s.name">{{ s.name }}</option>
+          </select>
+        </div>
+      </div>
+
+      <template v-if="editSpeaker">
+        <div class="row">
+          <div class="field" style="flex: 1 1 100%">
+            <label>description</label>
+            <input v-model="editDesc" type="text" placeholder="Optional description" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field"><label>gender</label><input v-model="editGender" type="text" /></div>
+          <div class="field"><label>language</label><input v-model="editLanguage" type="text" /></div>
+          <div class="field"><label>accent</label><input v-model="editAccent" type="text" /></div>
+          <div class="field"><label>tone</label><input v-model="editTone" type="text" /></div>
+          <div class="field"><label>duration_s</label><input v-model="editDuration" type="number" step="0.1" min="0" /></div>
+          <div class="field" style="flex: 1 1 240px">
+            <label>expression_tags (csv)</label>
+            <input v-model="editTags" type="text" placeholder="excitedly, amazed" />
+          </div>
+        </div>
+
+        <div v-if="providerList.length" class="field" style="margin-bottom: 8px">
+          <label>compatible_models</label>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <label v-for="m in providerList" :key="m.name" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em">
+              <input
+                type="checkbox"
+                :checked="editCompat.has(m.name)"
+                @change="toggleEditCompat(m.name)"
+              />
+              <code>{{ m.name }}</code>
+            </label>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" :disabled="editSaving" @click="saveSpeakerEdits">
+            Save description / metadata / compatible_models
+          </button>
+        </div>
+
+        <div class="row">
+          <div class="field" style="flex: 1 1 280px">
+            <label>rename to</label>
+            <input v-model="editRenameTo" type="text" :placeholder="editSpeaker.name" />
+          </div>
+          <div class="field" style="justify-content: flex-end">
+            <label>&nbsp;</label>
+            <button class="btn btn-outline" :disabled="editSaving" @click="renameSelectedSpeaker">
+              Rename speaker
+            </button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field" style="flex: 1 1 280px">
+            <label>replacement audio file</label>
+            <input type="file" accept="audio/*" @change="handleReplaceFile" />
+          </div>
+          <div class="field" style="flex: 1 1 280px">
+            <label>transcript</label>
+            <input v-model="editReplaceTranscript" type="text" placeholder="Exact text spoken in the file" />
+          </div>
+          <div class="field" style="justify-content: flex-end">
+            <label>&nbsp;</label>
+            <button class="btn btn-outline" :disabled="editSaving" @click="replaceSelectedAudio">
+              Replace reference audio
+            </button>
+          </div>
+        </div>
+      </template>
+      <div v-else style="color: #888; font-size: 0.9em">
+        Fetch speakers above to enable editing.
       </div>
     </div>
 
