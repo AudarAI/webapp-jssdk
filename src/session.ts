@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { SessionResponse, SessionWithContextResponse, SessionListResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest, ModeratorDispatchRequest, ModeratorDispatchResponse, ReplyToMemberRequest, ParticipantContextUpsert, ParticipantContextResponse, ParticipantContextPrivateResponse, SessionActionCreate, SessionActionResponse, ActionCountsResponse } from "./types";
+import { SessionResponse, SessionWithContextResponse, SessionListResponse, Participant, MessageCreate, MessageResponse, MessageListResponse, LiveKitTokenResponse, LiveKitTokenRequest, ModeratorDispatchRequest, ModeratorDispatchResponse, RecordingInfo, ReplyToMemberRequest, ParticipantContextUpsert, ParticipantContextResponse, ParticipantContextPrivateResponse, SessionActionCreate, SessionActionResponse, ActionCountsResponse } from "./types";
 
 export class SessionApi {
   constructor(private readonly _http: HttpClient) {}
@@ -27,6 +27,22 @@ export class SessionApi {
 
   async end(sessionId: string): Promise<SessionResponse> {
     return this._http.request<SessionResponse>("POST", `/v1/agent/sessions/${encodeURIComponent(sessionId)}/end`);
+  }
+
+  /**
+   * Get recording metadata for a session.
+   *
+   * Returns `status: "pending"` while LiveKit egress is still uploading,
+   * `status: "ready"` (with a presigned `presigned_url`) once the MP4 is in S3,
+   * or `status: "failed"` if egress aborted. Throws 404 if this session was
+   * never recorded (e.g. the agent's `media_policy.recording_enabled` was false
+   * and no per-session override turned it on).
+   */
+  async getRecording(sessionId: string): Promise<RecordingInfo> {
+    return this._http.request<RecordingInfo>(
+      "GET",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}/recording`,
+    );
   }
 
   /** List participants currently in the session. */

@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { AgentCreate, AgentUpdate, AgentResponse, AgentChatResponse, VoiceSessionRequest, VoiceSessionResponse } from "./types";
+import { AgentCreate, AgentUpdate, AgentResponse, AgentChatResponse, MediaOverrides, VoiceSessionRequest, VoiceSessionResponse } from "./types";
 import { KnowledgeApi } from "./knowledge";
 import { ToolApi } from "./tool";
 import { SkillApi } from "./skill";
@@ -74,7 +74,7 @@ export class AgentApi {
   async chat(
     agentId: string,
     message: string,
-    options?: { voice_id?: string; metadata?: Record<string, unknown> },
+    options?: { voice_id?: string; metadata?: Record<string, unknown>; media_overrides?: MediaOverrides },
   ): Promise<AgentChatResponse> {
     return this._http.request<AgentChatResponse>("POST", `/v1/agent/agents/${encodeURIComponent(agentId)}/chat`, {
       headers: { "Content-Type": "application/json" },
@@ -82,6 +82,7 @@ export class AgentApi {
         message,
         ...(options?.voice_id ? { voice_id: options.voice_id } : {}),
         ...(options?.metadata ? { metadata: options.metadata } : {}),
+        ...(options?.media_overrides ? { media_overrides: options.media_overrides } : {}),
       }),
     });
   }

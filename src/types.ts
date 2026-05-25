@@ -430,6 +430,32 @@ export interface MemoryPolicy {
   num_history_turns?: number;
 }
 
+export interface MediaPolicy {
+  /** Whether this agent supports video tracks. */
+  video_enabled?: boolean;
+  /** Whether sessions with this agent are recorded to S3 by default. */
+  recording_enabled?: boolean;
+  /** LiveKit RoomComposite layout (default: "speaker"). */
+  recording_layout?: string;
+}
+
+export interface MediaOverrides {
+  /** Override agent.media_policy.video_enabled for this session/token. */
+  video_enabled?: boolean;
+  /** Override agent.media_policy.recording_enabled for this session/token. */
+  recording_enabled?: boolean;
+}
+
+export interface RecordingInfo {
+  s3_key: string;
+  s3_bucket: string;
+  /** "pending" while egress is still running, "ready" once finished, "failed" on egress failure. */
+  status: string;
+  duration_ms?: number;
+  /** Presigned GET URL for the MP4 (only set when status === "ready"). */
+  presigned_url?: string | null;
+}
+
 export interface ToolBinding {
   tool_id: string;
   [key: string]: unknown;
@@ -442,6 +468,7 @@ export interface AgentCreate {
   identity?: Record<string, unknown>;
   voice_id?: string;
   memory_policy?: MemoryPolicy;
+  media_policy?: MediaPolicy;
   tool_bindings?: ToolBinding[];
   is_public?: boolean;
   is_platform?: boolean;
@@ -469,6 +496,7 @@ export interface AgentUpdate {
   identity?: Record<string, unknown>;
   voice_id?: string;
   memory_policy?: MemoryPolicy;
+  media_policy?: MediaPolicy;
   tool_bindings?: ToolBinding[];
   is_public?: boolean;
   is_platform?: boolean;
@@ -494,6 +522,7 @@ export interface AgentResponse {
   identity: Record<string, unknown>;
   voice_id: string | null;
   memory_policy: MemoryPolicy;
+  media_policy: MediaPolicy;
   tool_bindings: ToolBinding[];
   is_public: boolean;
   is_platform: boolean;
@@ -528,6 +557,8 @@ export interface VoiceSessionRequest {
   /** 终端用户显示名，用作 LiveKit participant name */
   user_name?: string;
   metadata?: Record<string, unknown>;
+  /** Per-call override of agent.media_policy (video / recording). */
+  media_overrides?: MediaOverrides;
 }
 
 /**
@@ -711,6 +742,8 @@ export interface SessionCreate {
   voice_id?: string;
   config?: Record<string, unknown>;
   participants?: Participant[];
+  /** Per-session override of agent.media_policy (video / recording). */
+  media_overrides?: MediaOverrides;
 }
 
 export interface LiveKitTokenRequest {
@@ -718,6 +751,8 @@ export interface LiveKitTokenRequest {
   user_id?: string;
   /** 终端用户显示名，用作 LiveKit participant name */
   user_name?: string;
+  /** Per-token override of agent.media_policy (video / recording). */
+  media_overrides?: MediaOverrides;
 }
 
 export interface SessionResponse {
