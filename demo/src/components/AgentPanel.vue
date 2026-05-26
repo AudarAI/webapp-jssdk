@@ -3,7 +3,7 @@ import { ref, watch, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse, ModelInfo } from "@audarai/sdk";
+import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse, VoiceSessionRequest, MediaOverrides, ModelInfo } from "@audarai/sdk";
 import { Room, RoomEvent, Track, createLocalAudioTrack, setLogLevel, LogLevel, LoggerNames, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
@@ -253,6 +253,17 @@ const voiceVoiceId       = ref("");
 const userName           = ref("");
 const userId             = ref("");
 
+// Session-start overrides (all optional)
+const voiceLanguage           = ref("");
+const voiceRoomName           = ref("");
+const voiceMaxDuration        = ref<number | "">("");
+const voiceInactivityTimeout  = ref<number | "">("");
+const voiceRecordingEnabled   = ref(false);
+const voiceRecordingFormat    = ref<"" | "mp4" | "ogg" | "mp3">("");
+const voiceRecordingLayout    = ref("");
+const voiceVariablesJson      = ref("");
+const voiceWebhookMetaJson    = ref("");
+
 function randomizeUser() {
   const rand = () => Math.random().toString(36).slice(2, 6);
   userName.value = `User_${rand()}`;
@@ -482,12 +493,36 @@ async function startVoice() {
 
     // 2. API call (mic already warmed at page load)
     const tApi = performance.now();
-    const res = await client.value!.agent.createVoiceSession(voiceAgentId.value, {
+    const opts: VoiceSessionRequest = {
       message: voiceInitMsg.value || "Hello",
       ...(voiceVoiceId.value ? { voice_id: voiceVoiceId.value } : {}),
       ...(userName.value ? { user_name: userName.value } : {}),
       ...(userId.value ? { user_id: userId.value } : {}),
-    });
+      ...(voiceLanguage.value ? { language: voiceLanguage.value } : {}),
+      ...(voiceRoomName.value ? { room_name: voiceRoomName.value } : {}),
+      ...(voiceMaxDuration.value !== "" ? { max_duration_seconds: Number(voiceMaxDuration.value) } : {}),
+      ...(voiceInactivityTimeout.value !== "" ? { inactivity_timeout_seconds: Number(voiceInactivityTimeout.value) } : {}),
+    };
+    const parseJsonOpt = (label: string, raw: string): Record<string, unknown> | undefined => {
+      if (!raw.trim()) return undefined;
+      try { return JSON.parse(raw); }
+      catch (e) {
+        logError(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+        throw e;
+      }
+    };
+    const variables = parseJsonOpt("variables", voiceVariablesJson.value);
+    if (variables) opts.variables = variables;
+    const wh = parseJsonOpt("webhook_metadata", voiceWebhookMetaJson.value);
+    if (wh) opts.webhook_metadata = wh;
+    if (voiceRecordingEnabled.value || voiceRecordingFormat.value || voiceRecordingLayout.value) {
+      const mo: MediaOverrides = {};
+      if (voiceRecordingEnabled.value) mo.recording_enabled = true;
+      if (voiceRecordingFormat.value) mo.recording_format = voiceRecordingFormat.value;
+      if (voiceRecordingLayout.value) mo.recording_layout = voiceRecordingLayout.value;
+      opts.media_overrides = mo;
+    }
+    const res = await client.value!.agent.createVoiceSession(voiceAgentId.value, opts);
 
     voiceSessionId.value = res.session_id;
     voiceSessionInfo.value = res;
@@ -879,6 +914,66 @@ onUnmounted(() => {
         </div>
         <div class="field" style="align-self:flex-end">
           <button class="btn btn-outline" @click="randomizeUser">Random</button>
+        </div>
+      </div>
+
+      <!-- Session-start overrides -->
+      <div class="row">
+        <div class="field">
+          <label>language (override)</label>
+          <input v-model="voiceLanguage" type="text" placeholder="en / zh / ja …" />
+        </div>
+        <div class="field">
+          <label>room_name (display)</label>
+          <input v-model="voiceRoomName" type="text" placeholder="optional, business name" />
+        </div>
+        <div class="field">
+          <label>max_duration_seconds</label>
+          <input v-model.number="voiceMaxDuration" type="number" min="1" placeholder="auto-end after N s" />
+        </div>
+        <div class="field">
+          <label>inactivity_timeout_seconds</label>
+          <input v-model.number="voiceInactivityTimeout" type="number" min="1" placeholder="end after N s idle" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label><input v-model="voiceRecordingEnabled" type="checkbox" /> recording_enabled</label>
+        </div>
+        <div class="field">
+          <label>recording_format</label>
+          <select v-model="voiceRecordingFormat">
+            <option value="">— default (mp4) —</option>
+            <option value="mp4">mp4</option>
+            <option value="ogg">ogg</option>
+            <option value="mp3">mp3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>recording_layout</label>
+          <input v-model="voiceRecordingLayout" type="text" placeholder="speaker / grid / …" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>variables (JSON)</label>
+          <textarea
+            v-model="voiceVariablesJson"
+            rows="2"
+            placeholder='{"name":"Alice","task":"demo"}'
+            style="width:100%;font-family:monospace"
+          ></textarea>
+        </div>
+        <div class="field" style="flex:1">
+          <label>webhook_metadata (JSON)</label>
+          <textarea
+            v-model="voiceWebhookMetaJson"
+            rows="2"
+            placeholder='{"data_id":"x","user_id":"y","mode":"live"}'
+            style="width:100%;font-family:monospace"
+          ></textarea>
         </div>
       </div>
 

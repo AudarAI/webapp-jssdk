@@ -444,6 +444,10 @@ export interface MediaOverrides {
   video_enabled?: boolean;
   /** Override agent.media_policy.recording_enabled for this session/token. */
   recording_enabled?: boolean;
+  /** Recording container format. "mp4" | "ogg" | "mp3". Defaults to mp4. */
+  recording_format?: string;
+  /** Override agent.media_policy.recording_layout (LiveKit RoomComposite layout). */
+  recording_layout?: string;
 }
 
 export interface RecordingInfo {
@@ -556,9 +560,20 @@ export interface VoiceSessionRequest {
   user_id?: string;
   /** 终端用户显示名，用作 LiveKit participant name */
   user_name?: string;
-  metadata?: Record<string, unknown>;
-  /** Per-call override of agent.media_policy (video / recording). */
+  /** Per-call override of agent.media_policy (video / recording / format / layout). */
   media_overrides?: MediaOverrides;
+  /** Override agent.language for this session (flows to STT/TTS/LLM). */
+  language?: string;
+  /** Template variables consumed by `{{key}}` placeholders in agent.system_prompt. */
+  variables?: Record<string, unknown>;
+  /** Business-facing display name. LiveKit room id is still `session-{session_id}`. */
+  room_name?: string;
+  /** Auto-terminate the session after this many seconds. */
+  max_duration_seconds?: number;
+  /** Auto-terminate after this many seconds with no STT/TTS activity. */
+  inactivity_timeout_seconds?: number;
+  /** Free-form data echoed into every webhook event payload under `data._webhook_metadata`. */
+  webhook_metadata?: Record<string, unknown>;
 }
 
 /**

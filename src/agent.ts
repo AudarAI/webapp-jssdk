@@ -74,14 +74,13 @@ export class AgentApi {
   async chat(
     agentId: string,
     message: string,
-    options?: { voice_id?: string; metadata?: Record<string, unknown>; media_overrides?: MediaOverrides },
+    options?: { voice_id?: string; media_overrides?: MediaOverrides },
   ): Promise<AgentChatResponse> {
     return this._http.request<AgentChatResponse>("POST", `/v1/agent/agents/${encodeURIComponent(agentId)}/chat`, {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message,
         ...(options?.voice_id ? { voice_id: options.voice_id } : {}),
-        ...(options?.metadata ? { metadata: options.metadata } : {}),
         ...(options?.media_overrides ? { media_overrides: options.media_overrides } : {}),
       }),
     });
@@ -92,10 +91,30 @@ export class AgentApi {
    * This is faster than calling `chat()` + `sessions.getLiveKitToken()` separately
    * as it eliminates one HTTP round-trip and one auth resolution.
    *
+   * Session-level overrides take precedence over the agent's defaults:
+   *   - `language` overrides `agent.language` (flows to STT/TTS/LLM).
+   *   - `variables` populate `{{key}}` placeholders in the agent's system_prompt
+   *     and greeting; un-referenced keys are appended as a "Session assignment" block.
+   *   - `max_duration_seconds` / `inactivity_timeout_seconds` auto-terminate the session.
+   *   - `media_overrides` toggles recording on/off and chooses container/layout.
+   *   - `webhook_metadata` is echoed into every outbound webhook payload under
+   *     `data._webhook_metadata` — useful for correlating events with caller-side IDs.
+   *
    * @example
    * const res = await client.agent.createVoiceSession(agentId, {
    *   voice_id: "Aria",
    *   user_name: "Alice",
+   *   language: "en",
+   *   variables: { name: "Alice", task: "demo" },
+   *   room_name: "demo-room",
+   *   max_duration_seconds: 600,
+   *   inactivity_timeout_seconds: 60,
+   *   media_overrides: {
+   *     recording_enabled: true,
+   *     recording_format: "ogg",   // "mp4" | "ogg" | "mp3"
+   *     recording_layout: "grid",
+   *   },
+   *   webhook_metadata: { data_id: "abc", user_id: "u1" },
    * });
    * // Connect to LiveKit directly:
    * const room = new Room();
