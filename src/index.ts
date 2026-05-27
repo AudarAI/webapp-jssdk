@@ -68,6 +68,7 @@ export type {
   AgentUpdate,
   AgentResponse,
   AgentChatResponse,
+  AgentVoicesResponse,
   VoiceSessionRequest,
   VoiceSessionResponse,
   PhaseConfig,

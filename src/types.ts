@@ -70,6 +70,14 @@ export interface Speaker {
   metadata?: VoiceMetadata;
   /** TTS model names this voice may be selected with (model_management `name`). */
   compatible_models?: string[];
+  /**
+   * Owner of this voice. `null` means a system-level voice visible to every
+   * user; a non-null user id means a voice the caller uploaded themselves.
+   * Use this to group "system" vs "my voices" in a picker.
+   */
+  owner_user_id?: string | null;
+  /** Tenant the voice was uploaded under. `null` for system voices. */
+  tenant_id?: string | null;
 }
 
 export interface ListSpeakersResponse {
@@ -547,6 +555,21 @@ export interface AgentResponse {
 export interface AgentChatResponse {
   session_id: string;
   room_id: string;
+}
+
+/**
+ * Voices selectable for an agent — the result of resolving the agent's
+ * `tts_model` (or the server default when unset) and returning every
+ * compatible voice the caller can use.
+ *
+ * `voices` is the union of system voices (`owner_user_id` null) and the
+ * caller's own uploads; inspect each voice's `owner_user_id` to group them.
+ */
+export interface AgentVoicesResponse {
+  agent_id: string;
+  /** The TTS model the voices were resolved against. `null` when the agent has none configured and the server fell back to its default. */
+  tts_model: string | null;
+  voices: Speaker[];
 }
 
 /**

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
 import LogBox from "./LogBox.vue";
-import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse, VoiceSessionRequest, MediaOverrides, ModelInfo } from "@audarai/sdk";
+import type { AgentResponse, MessageResponse, SkillResponse, KnowledgeResponse, ToolResponse, VoiceSessionResponse, VoiceSessionRequest, MediaOverrides, ModelInfo, Speaker } from "@audarai/sdk";
 import { Room, RoomEvent, Track, createLocalAudioTrack, setLogLevel, LogLevel, LoggerNames, type TranscriptionSegment, type Participant } from "livekit-client";
 
 const { client } = useClient();
@@ -16,7 +16,6 @@ const agents = ref<AgentResponse[]>([]);
 const skillList      = ref<SkillResponse[]>([]);
 const knowledgeList  = ref<KnowledgeResponse[]>([]);
 const toolList       = ref<ToolResponse[]>([]);
-const voiceList      = ref<string[]>([]);
 const sttModelList   = ref<ModelInfo[]>([]);
 const ttsModelList   = ref<ModelInfo[]>([]);
 const llmModelList   = ref<ModelInfo[]>([]);
@@ -32,11 +31,10 @@ async function loadDropdownData() {
       return fallback;
     });
 
-  const [skills, knowledge, tools, voices, sttModels, ttsModels, llmModels] = await Promise.all([
+  const [skills, knowledge, tools, sttModels, ttsModels, llmModels] = await Promise.all([
     safe(c.agent.skills.list(),    [] as SkillResponse[],     "skills.list"),
     safe(c.agent.knowledge.list(), [] as KnowledgeResponse[], "knowledge.list"),
     safe(c.agent.tools.list(),     [] as ToolResponse[],      "tools.list"),
-    safe(c.tts.listSpeakers(),     [] as string[],            "tts.listSpeakers"),
     safe(c.stt.listModels(),       [] as ModelInfo[],         "stt.listModels"),
     safe(c.tts.listModels(),       [] as ModelInfo[],         "tts.listModels"),
     safe(c.llm.listModels(),       [] as ModelInfo[],         "llm.listModels"),
@@ -44,11 +42,47 @@ async function loadDropdownData() {
   skillList.value     = skills;
   knowledgeList.value = knowledge;
   toolList.value      = tools;
-  voiceList.value     = voices;
   sttModelList.value  = sttModels;
   ttsModelList.value  = ttsModels;
   llmModelList.value  = llmModels;
 }
+
+// Voices for the create/edit forms are scoped to the selected tts_model so the
+// picker only offers voices the chosen model can actually speak with — system
+// voices plus the caller's own uploads. Each form gets its own instance.
+function useModelVoices() {
+  const list    = ref<Speaker[]>([]);
+  const loading = ref(false);
+  const system  = computed(() => list.value.filter((v) => v.owner_user_id == null));
+  const mine    = computed(() => list.value.filter((v) => v.owner_user_id != null));
+
+  /**
+   * Load voices compatible with `model` (empty = no model filter → all voices).
+   * Returns the voice_id to keep selected: the current one if it's still in the
+   * list, otherwise "" so an incompatible selection is dropped.
+   */
+  async function load(model: string, currentVoiceId: string): Promise<string> {
+    if (!client.value) return currentVoiceId;
+    loading.value = true;
+    try {
+      list.value = await client.value.tts.listSpeakersDetailed(model || undefined);
+      if (currentVoiceId && !list.value.some((v) => v.name === currentVoiceId)) {
+        return "";
+      }
+      return currentVoiceId;
+    } catch (err) {
+      logError(err);
+      return currentVoiceId;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return { list, loading, system, mine, load };
+}
+
+const createVoices = useModelVoices();
+const editVoices   = useModelVoices();
 
 // Auto-load dropdown data as soon as the client is ready, so the
 // stt_model / tts_model / llm_model selectors are populated before the
@@ -180,6 +214,26 @@ function cancelEdit() {
   editingId.value = null;
 }
 
+// Reload the create-form voice picker whenever its tts_model changes (immediate
+// so it's populated on first render). Drops a voice that the new model can't use.
+watch(
+  () => newAgent.value.tts_model,
+  async (model) => {
+    newAgent.value.voice_id = await createVoices.load(model, newAgent.value.voice_id);
+  },
+  { immediate: true },
+);
+
+// Same for the edit form. Fires when an agent is opened for editing (editingId +
+// tts_model both change) and when the user switches tts_model in the form.
+watch(
+  [() => editingId.value, () => editForm.value.tts_model],
+  async () => {
+    if (!editingId.value) return;
+    editForm.value.voice_id = await editVoices.load(editForm.value.tts_model, editForm.value.voice_id);
+  },
+);
+
 async function saveEdit() {
   if (!editingId.value) return;
   log(`Updating Agent: ${editingId.value}...`, "info");
@@ -252,6 +306,32 @@ const voiceInitMsg       = ref("Hello");
 const voiceVoiceId       = ref("");
 const userName           = ref("");
 const userId             = ref("");
+
+// Voices selectable for the agent picked above. Fetched via the agent-scoped
+// endpoint so the list is filtered to the agent's TTS model and split into
+// system voices (owner_user_id == null) vs. the caller's own uploads.
+const agentVoiceList     = ref<Speaker[]>([]);
+const agentVoicesLoading = ref(false);
+const systemVoices       = computed(() => agentVoiceList.value.filter((v) => v.owner_user_id == null));
+const myVoices           = computed(() => agentVoiceList.value.filter((v) => v.owner_user_id != null));
+
+// When the Voice Chat agent changes, reload its compatible voices and drop a
+// stale override that may not belong to the new agent's model.
+watch(voiceAgentId, async (agentId) => {
+  voiceVoiceId.value = "";
+  agentVoiceList.value = [];
+  if (!agentId || !client.value) return;
+  agentVoicesLoading.value = true;
+  try {
+    const res = await client.value.agent.listAgentVoices(agentId);
+    agentVoiceList.value = res.voices;
+    log(`Loaded ${res.voices.length} voice(s) for agent (tts_model=${res.tts_model ?? "default"})`, "ok");
+  } catch (err) {
+    logError(err);
+  } finally {
+    agentVoicesLoading.value = false;
+  }
+});
 
 // Session-start overrides (all optional)
 const voiceLanguage           = ref("");
@@ -669,10 +749,17 @@ onUnmounted(() => {
           </div>
           <div class="field">
             <label>voice_id</label>
+            <small class="field-tip">Voices compatible with the selected tts_model below (system + your uploads).</small>
             <select v-model="editForm.voice_id">
               <option value="">— Not Set —</option>
-              <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+              <optgroup v-if="editVoices.system.value.length" label="System voices">
+                <option v-for="v in editVoices.system.value" :key="v.name" :value="v.name">{{ v.name }}</option>
+              </optgroup>
+              <optgroup v-if="editVoices.mine.value.length" label="My voices">
+                <option v-for="v in editVoices.mine.value" :key="v.name" :value="v.name">{{ v.name }}</option>
+              </optgroup>
             </select>
+            <small v-if="editVoices.loading.value" class="hint">Loading voices…</small>
           </div>
         </div>
         <div class="row">
@@ -783,10 +870,17 @@ onUnmounted(() => {
           </div>
           <div class="field">
             <label>voice_id</label>
+            <small class="field-tip">Voices compatible with the selected tts_model below (system + your uploads).</small>
             <select v-model="newAgent.voice_id">
               <option value="">— Not Set —</option>
-              <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+              <optgroup v-if="createVoices.system.value.length" label="System voices">
+                <option v-for="v in createVoices.system.value" :key="v.name" :value="v.name">{{ v.name }}</option>
+              </optgroup>
+              <optgroup v-if="createVoices.mine.value.length" label="My voices">
+                <option v-for="v in createVoices.mine.value" :key="v.name" :value="v.name">{{ v.name }}</option>
+              </optgroup>
             </select>
+            <small v-if="createVoices.loading.value" class="hint">Loading voices…</small>
           </div>
         </div>
         <div class="row">
@@ -899,10 +993,16 @@ onUnmounted(() => {
         </div>
         <div class="field">
           <label>voice_id (optional override)</label>
-          <select v-model="voiceVoiceId">
-            <option value="">— Use Agent default —</option>
-            <option v-for="v in voiceList" :key="v" :value="v">{{ v }}</option>
+          <select v-model="voiceVoiceId" :disabled="!voiceAgentId">
+            <option value="">{{ voiceAgentId ? "— Use Agent default —" : "— Select an agent first —" }}</option>
+            <optgroup v-if="systemVoices.length" label="System voices">
+              <option v-for="v in systemVoices" :key="v.name" :value="v.name">{{ v.name }}</option>
+            </optgroup>
+            <optgroup v-if="myVoices.length" label="My voices">
+              <option v-for="v in myVoices" :key="v.name" :value="v.name">{{ v.name }}</option>
+            </optgroup>
           </select>
+          <small v-if="agentVoicesLoading" class="hint">Loading voices…</small>
         </div>
         <div class="field">
           <label>Display name</label>

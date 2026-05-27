@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { AgentCreate, AgentUpdate, AgentResponse, AgentChatResponse, MediaOverrides, VoiceSessionRequest, VoiceSessionResponse } from "./types";
+import { AgentCreate, AgentUpdate, AgentResponse, AgentChatResponse, AgentVoicesResponse, MediaOverrides, VoiceSessionRequest, VoiceSessionResponse } from "./types";
 import { KnowledgeApi } from "./knowledge";
 import { ToolApi } from "./tool";
 import { SkillApi } from "./skill";
@@ -58,6 +58,27 @@ export class AgentApi {
 
   async deleteAgent(agentId: string): Promise<void> {
     await this._http.request<unknown>("DELETE", `/v1/agent/agents/${encodeURIComponent(agentId)}`);
+  }
+
+  /**
+   * List the voices selectable for an agent.
+   *
+   * The server resolves the agent's `tts_model` (falling back to the platform
+   * default when the agent has none) and returns every compatible voice the
+   * caller may use: system voices plus the caller's own uploaded voices.
+   * Inspect each voice's `owner_user_id` (`null` = system) to render
+   * "system" vs "my voices" groups in a picker.
+   *
+   * @example
+   * const { tts_model, voices } = await client.agent.listAgentVoices(agentId);
+   * const system = voices.filter((v) => v.owner_user_id == null);
+   * const mine   = voices.filter((v) => v.owner_user_id != null);
+   */
+  async listAgentVoices(agentId: string): Promise<AgentVoicesResponse> {
+    return this._http.request<AgentVoicesResponse>(
+      "GET",
+      `/v1/agent/agents/${encodeURIComponent(agentId)}/voices`,
+    );
   }
 
   /**
