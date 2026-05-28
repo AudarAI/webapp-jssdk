@@ -31,6 +31,22 @@ export interface AudaraiClientConfig {
    * WebSocket connections automatically exchange it for a session token (stk_).
    */
   apiKey?: string;
+  /**
+   * App ID (appid_ prefix) — public identifier of a registered App.
+   *
+   * Frontend: set `appId` alone (no secret). Safe to embed in a browser; all
+   * requests use a short-lived session token (stk_) auto-obtained from the appid
+   * (same flow as `publishableKey`). Restrict with the App's Allowed Origins.
+   *
+   * Backend: set `appId` together with `appSecret`. Requests authenticate via
+   * HTTP Basic `base64(appId:appSecret)`.
+   */
+  appId?: string;
+  /**
+   * App secret (secret_ prefix) — confidential, BACKEND ONLY. Never expose in a browser.
+   * Only meaningful together with `appId`.
+   */
+  appSecret?: string;
   /** Seconds before expiry to proactively refresh. Default: 30 */
   refreshThresholdSeconds?: number;
   /** Custom fetch implementation (e.g. node-fetch in Node.js environments) */
@@ -499,6 +515,8 @@ export interface AgentCreate {
   knowledge_bindings?: string[];
   /** Channel UUIDs to bind to this agent. */
   channel_bindings?: string[];
+  /** Allow users to interrupt this agent while it is speaking. Defaults to true. */
+  allow_interruptions?: boolean;
 }
 
 export interface AgentUpdate {
@@ -522,6 +540,8 @@ export interface AgentUpdate {
   skills?: string[];
   knowledge_bindings?: string[];
   channel_bindings?: string[];
+  /** Allow users to interrupt this agent while it is speaking. */
+  allow_interruptions?: boolean;
 }
 
 export interface AgentResponse {
@@ -548,6 +568,8 @@ export interface AgentResponse {
   skills: string[];
   knowledge_bindings: string[];
   channel_bindings: string[];
+  /** Allow users to interrupt this agent while it is speaking. */
+  allow_interruptions: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -597,6 +619,8 @@ export interface VoiceSessionRequest {
   inactivity_timeout_seconds?: number;
   /** Free-form data echoed into every webhook event payload under `data._webhook_metadata`. */
   webhook_metadata?: Record<string, unknown>;
+  /** Override `agent.allow_interruptions` for this session. Omit to inherit the agent's default. */
+  allow_interruptions?: boolean;
 }
 
 /**
@@ -791,6 +815,8 @@ export interface LiveKitTokenRequest {
   user_name?: string;
   /** Per-token override of agent.media_policy (video / recording). */
   media_overrides?: MediaOverrides;
+  /** Per-token override of `agent.allow_interruptions`. Omit to inherit. */
+  allow_interruptions?: boolean;
 }
 
 export interface SessionResponse {
