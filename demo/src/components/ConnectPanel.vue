@@ -8,13 +8,15 @@ const emit = defineEmits<{ connected: [] }>();
 
 const { connect, connected } = useClient();
 
+type AuthMode = "pk" | "accessToken" | "apiKey" | "appId" | "appIdSecret" | "relay";
+
 const baseUrl      = ref("https://prod.audarai.com/apiv2");
-const authMode     = ref<"pk" | "accessToken" | "apiKey">("pk");
-type AuthMode = "pk" | "accessToken" | "apiKey" | "relay";
+const authMode     = ref<AuthMode>("pk");
 
 const RELAY_URL_KEY = "demo_relay_base_url";
 
 const cred         = ref("pk_IHDQAHeZxu6uJ66FkvVor2qGAU-1e8bMuUDZ7i0PIK4");
+const appSecret    = ref("");   // 仅 appIdSecret(后端)模式使用
 const refreshUrl   = ref("");
 const livekitUrl   = ref("");
 const relayBaseUrl = ref(localStorage.getItem(RELAY_URL_KEY) ?? "http://localhost:8010");
@@ -116,6 +118,8 @@ const credLabel = computed(() => ({
   pk:          "Publishable Key",
   accessToken: "Access Token (JWT)",
   apiKey:      "API Key",
+  appId:       "App ID (appid)",
+  appIdSecret: "App ID (appid)",
   relay:       "",
 }[authMode.value]));
 
@@ -123,6 +127,8 @@ const credPlaceholder = computed(() => ({
   pk:          "pk_xxx",
   accessToken: "eyJ...",
   apiKey:      "ak_xxx",
+  appId:       "appid_xxx",
+  appIdSecret: "appid_xxx",
   relay:       "",
 }[authMode.value]));
 
@@ -141,6 +147,9 @@ async function handleConnect() {
     }
   } else if (!cred.value.trim()) {
     errMsg.value = "Please fill in the credential";
+    return;
+  } else if (authMode.value === "appIdSecret" && !appSecret.value.trim()) {
+    errMsg.value = "Please fill in the App Secret";
     return;
   }
 
@@ -179,6 +188,12 @@ async function handleConnect() {
         livekitUrl: lk,
         accessToken: () => a.getAccessToken(),
       };
+    } else if (authMode.value === "appId") {
+      // 前端：仅 appid（浏览器安全，等价 publishable key）
+      cfg = {baseUrl: url, appId: c, livekitUrl: lk};
+    } else if (authMode.value === "appIdSecret") {
+      // 后端：appid + secret（HTTP Basic base64(appid:secret)）
+      cfg = {baseUrl: url, appId: c, appSecret: appSecret.value.trim(), livekitUrl: lk};
     } else {
       cfg = {baseUrl: url, apiKey: c, livekitUrl: lk};
     }
@@ -206,6 +221,8 @@ async function handleConnect() {
         <option value="pk">Publishable Key</option>
         <option value="accessToken">Access Token (JWT)</option>
         <option value="apiKey">API Key</option>
+        <option value="appId">App — appid (frontend)</option>
+        <option value="appIdSecret">App — appid + secret (backend)</option>
         <option value="relay">Relay (Keycloak OAuth2)</option>
       </select>
     </div>
@@ -214,6 +231,12 @@ async function handleConnect() {
     <div v-if="authMode !== 'relay'" class="field">
       <label>{{ credLabel }}</label>
       <input v-model="cred" type="text" :placeholder="credPlaceholder" :disabled="connected" />
+    </div>
+
+    <!-- ── App secret (backend mode only) ── -->
+    <div v-if="authMode === 'appIdSecret'" class="field">
+      <label>App Secret <span class="hint">(backend only — never expose in browser)</span></label>
+      <input v-model="appSecret" type="password" placeholder="secret_xxx" :disabled="connected" />
     </div>
 
     <div v-if="authMode === 'accessToken'" class="field">

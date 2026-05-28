@@ -11,6 +11,14 @@ function parseJwtExp(jwt: string): number | null {
   }
 }
 
+/** Base64-encode a UTF-8 string in both browser (btoa) and Node (Buffer) environments. */
+function toBase64(s: string): string {
+  if (typeof btoa === "function") return btoa(s);
+  const B = (globalThis as { Buffer?: { from(d: string, enc: string): { toString(enc: string): string } } }).Buffer;
+  if (B) return B.from(s, "utf-8").toString("base64");
+  throw new Error("No base64 encoder available in this environment");
+}
+
 class TokenManager {
   private _token: string | null = null;
   private _expiresAt: number | null = null;
@@ -88,6 +96,7 @@ export class HttpClient {
   private readonly _wsTokenManager: TokenManager | null;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly _onTokenRefresh: (() => Promise<string>) | null;
+  private readonly _authScheme: string;
 
   constructor(
     baseUrl: string,
@@ -95,12 +104,14 @@ export class HttpClient {
     fetchImpl: typeof globalThis.fetch,
     wsTokenManager?: TokenManager,
     onTokenRefresh?: () => Promise<string>,
+    authScheme: string = "Bearer",
   ) {
     this._baseUrl = baseUrl.replace(/\/$/, "");
     this._tokenManager = tokenManager;
     this._wsTokenManager = wsTokenManager ?? null;
     this._fetch = fetchImpl;
     this._onTokenRefresh = onTokenRefresh ?? null;
+    this._authScheme = authScheme;
   }
 
   getBaseUrl(): string {
@@ -133,7 +144,7 @@ export class HttpClient {
     const url = this._buildUrl(path, options.query);
 
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
+      Authorization: `${this._authScheme} ${token}`,
       ...options.headers,
     };
 
@@ -153,7 +164,7 @@ export class HttpClient {
         this._tokenManager.invalidate();
         retryToken = await this._tokenManager.getToken();
       }
-      headers.Authorization = `Bearer ${retryToken}`;
+      headers.Authorization = `${this._authScheme} ${retryToken}`;
       const retryRes = await this._fetch(url, { method, headers, body: options.body });
       return this._handleResponse<T>(retryRes, options.expectBinary);
     }
@@ -215,20 +226,25 @@ export class AudaraiClient {
     const threshold = config.refreshThresholdSeconds ?? 30;
     const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
-    // Exactly one auth mode must be configured
+    // Exactly one auth mode must be configured (appSecret is a modifier of appId, not its own mode)
     const authModes = [
       config.publishableKey != null,
       config.accessToken != null,
       config.apiKey != null,
+      config.appId != null,
     ].filter(Boolean).length;
     if (authModes !== 1) {
       throw new AuthenticationError(
-        "Exactly one authentication mode must be configured: publishableKey, accessToken, or apiKey."
+        "Exactly one authentication mode must be configured: publishableKey, accessToken, apiKey, or appId."
       );
+    }
+    if (config.appSecret != null && config.appId == null) {
+      throw new AuthenticationError("appSecret requires appId to be set.");
     }
 
     let tokenProvider: (() => Promise<TokenData>) | null = null;
     let wsTokenProvider: (() => Promise<TokenData>) | null = null;
+    let authScheme = "Bearer";
 
     if (config.publishableKey) {
       const pk = config.publishableKey;
@@ -291,6 +307,42 @@ export class AudaraiClient {
         }
         return body.data as TokenData;
       };
+    } else if (config.appId) {
+      const appId = config.appId;
+      const baseUrl = config.baseUrl.replace(/\/$/, "");
+      if (config.appSecret) {
+        // Backend: authenticate via HTTP Basic base64(appId:appSecret).
+        // WebSocket exchanges the Basic credential for a session token (stk_).
+        const basic = toBase64(`${appId}:${config.appSecret}`);
+        authScheme = "Basic";
+        tokenProvider = async () => ({ token: basic, expires_in: 86400 });
+        wsTokenProvider = async () => {
+          const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
+            method: "POST",
+            headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ ttl: 300 }),
+          });
+          const body = await res.json();
+          if (body.code !== 0) {
+            throw new AuthenticationError(body.message ?? "Failed to obtain session token");
+          }
+          return body.data as TokenData;
+        };
+      } else {
+        // Frontend: appid alone → short-lived session token (same flow as publishableKey).
+        tokenProvider = async () => {
+          const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${appId}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ ttl: 300 }),
+          });
+          const body = await res.json();
+          if (body.code !== 0) {
+            throw new AuthenticationError(body.message ?? "Failed to obtain session token");
+          }
+          return body.data as TokenData;
+        };
+      }
     }
 
     this._livekitUrl = config.livekitUrl;
@@ -307,6 +359,7 @@ export class AudaraiClient {
       fetchImpl,
       wsTokenManager,
       config.onTokenRefresh,
+      authScheme,
     );
 
     // Auto pre-warm DNS/TLS for LiveKit server

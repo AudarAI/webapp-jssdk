@@ -116,13 +116,14 @@ new Audio(url).play();
 
 ## Authentication
 
-The SDK supports three mutually exclusive authentication modes. Choose exactly one.
+The SDK supports four mutually exclusive authentication modes. Choose exactly one.
 
 | Mode | Field | HTTP Requests | WebSocket |
 |---|---|---|---|
 | Publishable Key | `publishableKey` | Auto-exchanged session token | Session token |
 | Access Token | `accessToken` | JWT passed directly | Auto-exchanged session token |
 | API Key | `apiKey` | API key passed directly | Auto-exchanged session token |
+| App | `appId` (+ `appSecret`) | appid → session token; appid+secret → HTTP Basic | Auto-exchanged session token |
 
 > WebSocket endpoints only accept short-lived session tokens (`stk_` prefix). The SDK handles the exchange automatically before establishing any connection — no manual handling required.
 
@@ -171,6 +172,35 @@ const client = createAudaraiClient({
   apiKey: 'ak_xxx',
 });
 ```
+
+### Mode 4: App (appid + secret) — one registration for frontend *and* backend
+
+Register an **App** once to get a pair of credentials:
+- **`appId`** (`appid_` prefix) — public, frontend uses it alone (safe to embed; restricted by the App's Allowed Origins).
+- **`appSecret`** (`secret_` prefix) — confidential, backend uses it together with `appId`. **Never expose in browser code.**
+
+```typescript
+// Frontend — appid only (browser-safe; behaves like a publishable key)
+const client = createAudaraiClient({
+  baseUrl: 'https://prod.audarai.com/apiv2',
+  appId: 'appid_xxx',
+});
+
+// Backend — appid + secret (authenticates via HTTP Basic base64(appid:secret))
+const client = createAudaraiClient({
+  baseUrl: 'https://prod.audarai.com/apiv2',
+  appId: 'appid_xxx',
+  appSecret: 'secret_xxx',
+});
+```
+
+> Create an App in the dashboard, or:
+> ```http
+> POST /v1/account/apps
+> { "name": "My App", "allowed_origins": ["https://yourapp.com"] }
+> → { "app_id": "appid_xxx", "secret": "secret_xxx" }   // secret shown once
+> ```
+> The `secret` is shown only once. Lost it? Reset via `POST /v1/account/apps/{id}/reset-secret` (the old secret is invalidated immediately; `appId` stays the same).
 
 ---
 
