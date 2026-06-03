@@ -501,6 +501,8 @@ export interface AgentCreate {
   is_public?: boolean;
   is_platform?: boolean;
   system_prompt?: string;
+  /** Fixed closing statement (English source) spoken verbatim when the session ends; non-English sessions are translated. Empty/omitted falls back to LLM-improvised closing. */
+  closing_statement?: string | null;
   language?: string;
   role?: string;
   /** STT model handle (e.g. "stt-flash"). Falls back to tenant/system default when omitted. */
@@ -532,6 +534,8 @@ export interface AgentUpdate {
   is_platform?: boolean;
   status?: string;
   system_prompt?: string;
+  /** Fixed closing statement (English source) spoken verbatim when the session ends; non-English sessions are translated. Send "" to clear. */
+  closing_statement?: string | null;
   language?: string;
   role?: string;
   stt_model?: string;
@@ -560,6 +564,8 @@ export interface AgentResponse {
   is_platform: boolean;
   status: string;
   system_prompt: string;
+  /** Fixed closing statement spoken verbatim when the session ends; null when unset. */
+  closing_statement: string | null;
   language: string | null;
   role: string | null;
   stt_model: string | null;
