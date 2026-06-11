@@ -61,6 +61,7 @@ export type {
   TranslationSseErrorMessage,
   MemoryPolicy,
   MediaPolicy,
+  TurnPolicy,
   MediaOverrides,
   RecordingInfo,
   ToolBinding,

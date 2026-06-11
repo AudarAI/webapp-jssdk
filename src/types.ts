@@ -463,6 +463,19 @@ export interface MediaPolicy {
   recording_layout?: string;
 }
 
+export interface TurnPolicy {
+  /** Min seconds to wait after the user stops before ending the turn. Lower = snappier, more risk of cutting in. Default 0.4. */
+  min_endpointing_delay?: number;
+  /** Max seconds to wait when the turn detector thinks the user may not be done. Default 2.0. */
+  max_endpointing_delay?: number;
+  /** Start LLM generation speculatively during the endpointing window to hide first-token latency. Default true. */
+  preemptive_generation?: boolean;
+  /** Silero VAD silence (seconds) required to mark end-of-speech. Default 0.5. */
+  vad_min_silence_duration?: number;
+  /** Extra debounce (seconds) after STT detects silence before committing FINAL. Default 0.5. */
+  stt_silence_commit_delay?: number;
+}
+
 export interface MediaOverrides {
   /** Override agent.media_policy.video_enabled for this session/token. */
   video_enabled?: boolean;
@@ -519,6 +532,8 @@ export interface AgentCreate {
   channel_bindings?: string[];
   /** Allow users to interrupt this agent while it is speaking. Defaults to true. */
   allow_interruptions?: boolean;
+  /** Voice turn-timing knobs (endpointing / VAD silence / STT commit / preemptive). */
+  turn_policy?: TurnPolicy;
 }
 
 export interface AgentUpdate {
@@ -546,6 +561,8 @@ export interface AgentUpdate {
   channel_bindings?: string[];
   /** Allow users to interrupt this agent while it is speaking. */
   allow_interruptions?: boolean;
+  /** Voice turn-timing knobs (endpointing / VAD silence / STT commit / preemptive). */
+  turn_policy?: TurnPolicy;
 }
 
 export interface AgentResponse {
@@ -576,6 +593,8 @@ export interface AgentResponse {
   channel_bindings: string[];
   /** Allow users to interrupt this agent while it is speaking. */
   allow_interruptions: boolean;
+  /** Voice turn-timing knobs (endpointing / VAD silence / STT commit / preemptive). */
+  turn_policy?: TurnPolicy;
   created_at: string;
   updated_at: string;
 }
@@ -627,6 +646,8 @@ export interface VoiceSessionRequest {
   webhook_metadata?: Record<string, unknown>;
   /** Override `agent.allow_interruptions` for this session. Omit to inherit the agent's default. */
   allow_interruptions?: boolean;
+  /** Partial per-session override of `agent.turn_policy` (only the keys to override). Omit to inherit. */
+  turn_policy?: TurnPolicy;
 }
 
 /**
