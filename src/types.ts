@@ -532,6 +532,8 @@ export interface AgentCreate {
   channel_bindings?: string[];
   /** Allow users to interrupt this agent while it is speaking. Defaults to true. */
   allow_interruptions?: boolean;
+  /** Allow users to interrupt the agent while it reads its opening line (greeting/welcome/auto-start). Defaults to false. */
+  allow_interruptions_opening?: boolean;
   /** Voice turn-timing knobs (endpointing / VAD silence / STT commit / preemptive). */
   turn_policy?: TurnPolicy;
 }
@@ -561,6 +563,8 @@ export interface AgentUpdate {
   channel_bindings?: string[];
   /** Allow users to interrupt this agent while it is speaking. */
   allow_interruptions?: boolean;
+  /** Allow users to interrupt the agent while it reads its opening line (greeting/welcome/auto-start). */
+  allow_interruptions_opening?: boolean;
   /** Voice turn-timing knobs (endpointing / VAD silence / STT commit / preemptive). */
   turn_policy?: TurnPolicy;
 }
@@ -593,6 +597,8 @@ export interface AgentResponse {
   channel_bindings: string[];
   /** Allow users to interrupt this agent while it is speaking. */
   allow_interruptions: boolean;
+  /** Allow users to interrupt the agent while it reads its opening line (greeting/welcome/auto-start). */
+  allow_interruptions_opening: boolean;
   /** Voice turn-timing knobs (endpointing / VAD silence / STT commit / preemptive). */
   turn_policy?: TurnPolicy;
   created_at: string;
@@ -646,6 +652,8 @@ export interface VoiceSessionRequest {
   webhook_metadata?: Record<string, unknown>;
   /** Override `agent.allow_interruptions` for this session. Omit to inherit the agent's default. */
   allow_interruptions?: boolean;
+  /** Override `agent.allow_interruptions_opening` for this session. Omit to inherit the agent's default. */
+  allow_interruptions_opening?: boolean;
   /** Partial per-session override of `agent.turn_policy` (only the keys to override). Omit to inherit. */
   turn_policy?: TurnPolicy;
 }
@@ -844,6 +852,8 @@ export interface LiveKitTokenRequest {
   media_overrides?: MediaOverrides;
   /** Per-token override of `agent.allow_interruptions`. Omit to inherit. */
   allow_interruptions?: boolean;
+  /** Per-token override of `agent.allow_interruptions_opening`. Omit to inherit. */
+  allow_interruptions_opening?: boolean;
 }
 
 export interface SessionResponse {
