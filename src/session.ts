@@ -13,6 +13,13 @@ export class SessionApi {
     });
   }
 
+  /** List the logged-in user's own sessions, optionally filtered by agent. */
+  async listMine(params?: { agent_id?: string; status?: string; page?: number; page_size?: number }): Promise<SessionListResponse> {
+    return this._http.request<SessionListResponse>("GET", "/v1/agent/sessions/me", {
+      query: params as Record<string, string | number | undefined>,
+    });
+  }
+
   async get(sessionId: string): Promise<SessionResponse> {
     return this._http.request<SessionResponse>("GET", `/v1/agent/sessions/${encodeURIComponent(sessionId)}`);
   }
