@@ -631,6 +631,8 @@ export interface AgentVoicesResponse {
  */
 export interface VoiceSessionRequest {
   message?: string;
+  /** 复用既有会话以续接历史（沿用其 room 与消息线程，自动注入历史）；为空则新建会话。 */
+  session_id?: string;
   voice_id?: string;
   /** 三方终端用户ID，用作 LiveKit participant identity */
   user_id?: string;
