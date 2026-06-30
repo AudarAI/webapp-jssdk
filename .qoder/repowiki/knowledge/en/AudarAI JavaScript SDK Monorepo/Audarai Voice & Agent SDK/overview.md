@@ -1,0 +1,1 @@
+A TypeScript client library for interacting with the Audarai platform, providing APIs for speech processing, AI agent management, and real-time voice sessions.

@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { ToolCreate, ToolUpdate, ToolResponse, BuiltinCatalogEntry } from "./types";
+import { ToolCreate, ToolUpdate, ToolResponse, BuiltinCatalogEntry, NativeToolEntry } from "./types";
 
 export class ToolApi {
   constructor(private readonly _http: HttpClient) {}
@@ -15,8 +15,17 @@ export class ToolApi {
     });
   }
 
+  /** List platform built-in Agno toolkits (http/mcp wrappers). */
   async listBuiltins(): Promise<BuiltinCatalogEntry[]> {
     return this._http.request<BuiltinCatalogEntry[]>("GET", "/v1/agent/tools/builtins");
+  }
+
+  /**
+   * List platform-native session tools (end_session, cast_vote, etc.).
+   * Agents opt in by adding `{"native": "<name>"}` to their `tool_bindings`.
+   */
+  async listNative(): Promise<NativeToolEntry[]> {
+    return this._http.request<NativeToolEntry[]>("GET", "/v1/agent/tools/native");
   }
 
   async get(toolId: string): Promise<ToolResponse> {

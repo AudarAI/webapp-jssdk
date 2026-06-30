@@ -1,0 +1,3 @@
+- The root `package.json` defines the `@audarai/sdk` library, built with `tsup` for dual CJS/ESM output.
+- The `demo/` sub-module consumes the SDK via a `file:..` dependency in its `package.json`, creating a tight local coupling for immediate integration testing.
+- Both modules share a common TypeScript baseline (`ES2020` target) but maintain separate build pipelines (`tsup` for the SDK, `vite` + `vue-tsc` for the demo).

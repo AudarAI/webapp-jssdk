@@ -1,0 +1,6 @@
+- **Entry Point**: `src/index.ts` exports a `createAudaraiClient` factory that instantiates `AudaraiClient` and attaches domain-specific API modules (`tts`, `stt`, `agent`, etc.).
+- **Core Client**: `src/client.ts` implements `AudaraiClient` and `HttpClient`, handling multi-mode authentication (Publishable Key, Access Token, API Key, App ID/Secret) via a `TokenManager` with automatic refresh and retry logic.
+- **Domain Modules**: Flat structure in `src/` where each file (e.g., `tts.ts`, `agent.ts`, `room.ts`) represents a distinct API surface, all depending on `HttpClient` for request execution.
+- **Real-time Support**: `SttWebSocket` and `TranslationWebSocket` classes wrap native WebSocket connections with typed message handlers and automatic protocol steps (e.g., sending `start` on `ready`).
+- **Type Definitions**: `src/types.ts` serves as the central schema repository for all request/response interfaces, shared across all modules.
+- **Error Handling**: `src/errors.ts` defines a hierarchy of custom errors (`AuthenticationError`, `ApiError`, etc.) thrown by the `HttpClient` based on HTTP status codes.

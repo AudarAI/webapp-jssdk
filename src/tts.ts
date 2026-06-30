@@ -70,6 +70,21 @@ export class TtsApi {
     return this._http.request<ModelInfo[]>("GET", "/v1/speech/tts/models");
   }
 
+  /**
+   * List voices flagged for the official website (public, no auth required).
+   * This endpoint does not require authentication.
+   *
+   * @param model - When set, filters to speakers whose `compatible_models` includes this name.
+   */
+  async listOfficialSpeakers(model?: string): Promise<Speaker[]> {
+    const res = await this._http.requestNoAuth<ListSpeakersResponse>(
+      "GET",
+      "/v1/speech/audio/official-speakers",
+      { query: model ? { model } : undefined },
+    );
+    return res.speakers ?? [];
+  }
+
   /** List available voices/speakers (names only, kept for backward compatibility). */
   async listSpeakers(): Promise<string[]> {
     const res = await this._http.request<ListSpeakersResponse>("GET", "/v1/speech/audio/speakers");

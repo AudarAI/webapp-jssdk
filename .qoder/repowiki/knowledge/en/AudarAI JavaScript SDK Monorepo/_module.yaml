@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: ""
+title: AudarAI JavaScript SDK Monorepo
+scope:
+    - .gitignore
+    - README.md
+    - README.ar.md
+    - README.zh-CN.md
+    - package.json
+    - package-lock.json
+    - tsconfig.json
+source_files: []
+depends_on: []
+related_to: []

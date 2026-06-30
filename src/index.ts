@@ -13,6 +13,10 @@ export { ArchetypeApi } from "./archetype";
 export { RoomApi } from "./room";
 export { SessionApi } from "./session";
 export { ChannelApi } from "./channel";
+export { AccountApi } from "./account";
+export { TenantApi } from "./tenant";
+export { AppApi } from "./app";
+export { WebhookApi } from "./webhook";
 export type { TranscribeResult } from "./stt";
 export type { TranslationResult } from "./translation";
 export type {
@@ -106,6 +110,7 @@ export type {
   ToolUpdate,
   ToolResponse,
   BuiltinCatalogEntry,
+  NativeToolEntry,
   SkillCreate,
   SkillUpdate,
   SkillResponse,
@@ -122,6 +127,47 @@ export type {
   SessionActionCreate,
   SessionActionResponse,
   ActionCountsResponse,
+  // Account types
+  AccountMeResponse,
+  BalanceResponse,
+  TopUpRequest,
+  GuestLoginRequest,
+  GuestLoginResponse,
+  CreateApiKeyRequest,
+  CreateApiKeyResponse,
+  UpdateApiKeyRequest,
+  ApiKeyItem,
+  UsageRecordItem,
+  UsageListResponse,
+  UsageStatsParams,
+  UsageStatsSummaryItem,
+  UsageSeriesItem,
+  UsageStatsResponse,
+  DashboardResponse,
+  // Tenant types
+  CreateTenantRequest,
+  UpdateTenantRequest,
+  TenantItem,
+  TenantMemberItem,
+  InviteMemberRequest,
+  InviteResponse,
+  AcceptInvitationRequest,
+  SwitchTenantRequest,
+  SwitchTenantResponse,
+  // App types
+  CreateAppRequest,
+  CreateAppResponse,
+  AppItem,
+  UpdateAppRequest,
+  ResetSecretResponse,
+  // Webhook types
+  WebhookEndpointCreate,
+  WebhookEndpointUpdate,
+  WebhookEndpointResponse,
+  WebhookEndpointCreatedResponse,
+  WebhookEndpointListResponse,
+  WebhookDeliveryResponse,
+  WebhookDeliveryListResponse,
 } from "./types";
 export { AudaraiError, AuthenticationError, InsufficientBalanceError, RateLimitedError, ApiError } from "./errors";
 
@@ -137,10 +183,14 @@ import { SkillApi } from "./skill";
 import { ArchetypeApi } from "./archetype";
 import { RoomApi } from "./room";
 import { SessionApi } from "./session";
+import { AccountApi } from "./account";
+import { TenantApi } from "./tenant";
+import { AppApi } from "./app";
+import { WebhookApi } from "./webhook";
 import type { AudaraiClientConfig } from "./types";
 
 /**
- * Convenience factory that creates an AudaraiClient with TTS, STT, Translation, Agent and Knowledge APIs.
+ * Convenience factory that creates an AudaraiClient with all API modules attached.
  *
  * @example
  * // Publishable key — all requests go through a session token
@@ -156,6 +206,10 @@ import type { AudaraiClientConfig } from "./types";
  * @example
  * // API key
  * const client = createAudaraiClient({ baseUrl: 'https://api.audarai.com', apiKey: 'ak_xxx' });
+ *
+ * @example
+ * // Guest token (obtained from account.guestLogin)
+ * const client = createAudaraiClient({ baseUrl: 'https://api.audarai.com', guestToken: 'gst_xxx' });
  */
 export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient & {
   tts: TtsApi;
@@ -167,6 +221,10 @@ export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient 
   tool: ToolApi;
   skill: SkillApi;
   archetype: ArchetypeApi;
+  account: AccountApi;
+  tenant: TenantApi;
+  app: AppApi;
+  webhook: WebhookApi;
 } {
   const client = new AudaraiClient(config) as AudaraiClient & {
     tts: TtsApi;
@@ -178,6 +236,10 @@ export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient 
     tool: ToolApi;
     skill: SkillApi;
     archetype: ArchetypeApi;
+    account: AccountApi;
+    tenant: TenantApi;
+    app: AppApi;
+    webhook: WebhookApi;
   };
   client.tts = new TtsApi(client.http);
   client.stt = new SttApi(client.http);
@@ -188,5 +250,9 @@ export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient 
   client.tool = new ToolApi(client.http);
   client.skill = new SkillApi(client.http);
   client.archetype = new ArchetypeApi(client.http);
+  client.account = new AccountApi(client.http);
+  client.tenant = new TenantApi(client.http);
+  client.app = new AppApi(client.http);
+  client.webhook = new WebhookApi(client.http);
   return client;
 }

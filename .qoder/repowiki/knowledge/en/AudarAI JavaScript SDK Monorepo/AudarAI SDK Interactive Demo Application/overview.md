@@ -1,0 +1,1 @@
+A Vue 3 single-page application providing an interactive test harness for the AudarAI JavaScript SDK, enabling real-time exploration of voice AI capabilities including speech-to-text, text-to-speech, and agentic voice sessions.

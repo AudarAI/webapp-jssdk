@@ -1,0 +1,124 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: main
+nodes_managed: true
+exported_at: "2026-06-30T10:35:55Z"
+modules:
+    "":
+        dir_name: AudarAI JavaScript SDK Monorepo
+        title: AudarAI JavaScript SDK Monorepo
+        scope:
+            - .gitignore
+            - README.md
+            - README.ar.md
+            - README.zh-CN.md
+            - package.json
+            - package-lock.json
+            - tsconfig.json
+        source_files: []
+        children:
+            - demo_app
+            - sdk
+        depends_on: []
+        related_to: []
+    build_system:
+        dir_name: NPM_Tsup & Vite Monorepo Build System
+        title: NPM/Tsup & Vite Monorepo Build System
+        scope: []
+        source_files:
+            - package.json
+            - tsconfig.json
+            - demo/package.json
+            - demo/vite.config.ts
+            - demo/tsconfig.json
+        children: []
+        depends_on: []
+        related_to: []
+    configuration_system:
+        dir_name: Runtime Configuration via Programmatic Client Initialization
+        title: Runtime Configuration via Programmatic Client Initialization
+        scope: []
+        source_files:
+            - src/types.ts
+            - src/client.ts
+            - src/auth.ts
+            - src/index.ts
+            - demo/src/components/ConnectPanel.vue
+            - demo/src/composables/useClient.ts
+            - demo/vite.config.ts
+            - package.json
+            - tsconfig.json
+        children: []
+        depends_on: []
+        related_to: []
+    demo_app:
+        dir_name: AudarAI SDK Interactive Demo Application
+        title: AudarAI SDK Interactive Demo Application
+        scope:
+            - demo/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    dependency_management:
+        dir_name: npm-based Monorepo with Local Workspace Linking
+        title: npm-based Monorepo with Local Workspace Linking
+        scope: []
+        source_files:
+            - package.json
+            - demo/package.json
+            - package-lock.json
+            - demo/package-lock.json
+        children: []
+        depends_on: []
+        related_to: []
+    error_handling:
+        dir_name: Custom Error Hierarchy with HTTP Status Mapping
+        title: Custom Error Hierarchy with HTTP Status Mapping
+        scope: []
+        source_files:
+            - src/errors.ts
+            - src/client.ts
+            - src/auth.ts
+            - src/index.ts
+            - src/stt.ts
+            - demo/src/composables/useLog.ts
+        children: []
+        depends_on: []
+        related_to: []
+    frontend_style:
+        dir_name: Vanilla CSS with Global Stylesheet and Scoped Component Overrides
+        title: Vanilla CSS with Global Stylesheet and Scoped Component Overrides
+        scope: []
+        source_files:
+            - demo/src/style.css
+            - demo/src/App.vue
+            - demo/src/components/ConnectPanel.vue
+            - demo/src/components/TtsPanel.vue
+            - demo/src/components/AgentPanel.vue
+            - demo/package.json
+            - demo/vite.config.ts
+        children: []
+        depends_on: []
+        related_to: []
+    logging_system:
+        dir_name: UI-Scoped Event Logging System
+        title: UI-Scoped Event Logging System
+        scope: []
+        source_files:
+            - demo/src/composables/useLog.ts
+            - demo/src/components/LogBox.vue
+            - src/errors.ts
+        children: []
+        depends_on: []
+        related_to: []
+    sdk:
+        dir_name: Audarai Voice & Agent SDK
+        title: Audarai Voice & Agent SDK
+        scope:
+            - src/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

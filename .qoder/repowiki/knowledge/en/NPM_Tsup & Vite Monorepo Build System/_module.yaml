@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: build_system
+title: NPM/Tsup & Vite Monorepo Build System
+scope: []
+source_files:
+    - package.json
+    - tsconfig.json
+    - demo/package.json
+    - demo/vite.config.ts
+    - demo/tsconfig.json
+depends_on: []
+related_to: []

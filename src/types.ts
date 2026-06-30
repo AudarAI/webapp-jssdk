@@ -47,6 +47,12 @@ export interface AudaraiClientConfig {
    * Only meaningful together with `appId`.
    */
   appSecret?: string;
+  /**
+   * Guest token (gst_ prefix) — low-privilege credential for anonymous/guest users.
+   * Obtained from `POST /v1/account/guest`. Used as a static Bearer token.
+   * WebSocket connections automatically exchange it for a session token (stk_).
+   */
+  guestToken?: string;
   /** Seconds before expiry to proactively refresh. Default: 30 */
   refreshThresholdSeconds?: number;
   /** Custom fetch implementation (e.g. node-fetch in Node.js environments) */
@@ -1066,8 +1072,16 @@ export interface ToolResponse {
   policy: Record<string, unknown>;
   is_public: boolean;
   status: string;
+  /** Origin of the tool: "db" for user-created, "native" for platform built-in session tools. */
+  origin?: "db" | "native";
   created_at: string;
   updated_at: string;
+}
+
+/** Entry in the native session tools catalog. */
+export interface NativeToolEntry {
+  name: string;
+  description: string;
 }
 
 export interface BuiltinCatalogEntry {
@@ -1261,4 +1275,278 @@ export interface ActionCountsResponse {
   round: number | null;
   /** Map of target_ref_id → count */
   counts: Record<string, number>;
+}
+
+// ── Account types ─────────────────────────────────────────────────────────────────
+
+export interface AccountMeResponse {
+  id: string;
+  tenant_id: string;
+  email: string;
+  display_name: string;
+  user_type: "guest" | "normal" | "admin";
+  status: "active" | "disabled";
+  roles: string[];
+}
+
+export interface BalanceResponse {
+  currency: string;
+  balance: number;
+  reserved: number;
+}
+
+export interface TopUpRequest {
+  amount: number;
+  currency?: string;
+}
+
+export interface GuestLoginRequest {
+  /** Persistent device identifier (mobile IDFV/Android ID, web localStorage UUID). */
+  device_id?: string;
+}
+
+export interface GuestLoginResponse {
+  user: AccountMeResponse;
+  /** Guest access token (gst_ prefix). */
+  access_token: string;
+  balance: BalanceResponse;
+}
+
+export interface CreateApiKeyRequest {
+  name: string;
+  expires_at?: string;
+  key_type?: "secret" | "publishable";
+  allowed_origins?: string[];
+}
+
+export interface CreateApiKeyResponse {
+  id: string;
+  /** Plaintext key — returned once only. */
+  key: string;
+  created_at: number;
+}
+
+export interface UpdateApiKeyRequest {
+  allowed_origins: string[];
+}
+
+export interface ApiKeyItem {
+  id: string;
+  name: string;
+  key: string | null;
+  status: "active" | "revoked";
+  key_type: "secret" | "publishable";
+  allowed_origins: string[];
+  created_at: number;
+  last_used_at: number | null;
+  expires_at: string | null;
+}
+
+export interface UsageRecordItem {
+  id: string;
+  service: string;
+  model: string | null;
+  units: number;
+  billing_unit: string;
+  unit_price: number;
+  total_cost: number;
+  created_at: number;
+}
+
+export interface UsageListResponse {
+  data: UsageRecordItem[];
+  total: number;
+  /** Sum of total_cost across all matching records (not limited by pagination). */
+  total_cost: number;
+  page: number;
+  page_size: number;
+}
+
+export interface UsageStatsParams {
+  start_date: string;
+  end_date: string;
+  service?: string;
+  granularity?: "hour" | "day" | "month";
+}
+
+export interface UsageStatsSummaryItem {
+  service: string;
+  billing_unit: string;
+  total_units: number;
+  total_cost: number;
+}
+
+export interface UsageSeriesItem {
+  date: string;
+  service: string;
+  units: number;
+  cost: number;
+}
+
+export interface UsageStatsResponse {
+  summary: UsageStatsSummaryItem[];
+  series: UsageSeriesItem[];
+}
+
+export interface DashboardResponse {
+  monthly_cost: number;
+  api_key_count: number;
+  balance: number;
+  reserved: number;
+  currency: string;
+}
+
+// ── Tenant types ──────────────────────────────────────────────────────────────────
+
+export interface CreateTenantRequest {
+  name: string;
+  region?: string;
+}
+
+export interface UpdateTenantRequest {
+  name?: string;
+  region?: string;
+}
+
+export interface TenantItem {
+  id: string;
+  name: string;
+  region: string | null;
+  status: string;
+  role_in_tenant: string;
+  created_at: number;
+}
+
+export interface TenantMemberItem {
+  user_id: string;
+  email: string;
+  display_name: string;
+  role_in_tenant: string;
+  status: string;
+  joined_at: number | null;
+}
+
+export interface InviteMemberRequest {
+  email: string;
+  role_in_tenant?: "owner" | "admin" | "member";
+}
+
+export interface InviteResponse {
+  invitation_id: string;
+  invite_token: string;
+  expires_at: number;
+}
+
+export interface AcceptInvitationRequest {
+  token: string;
+}
+
+export interface SwitchTenantRequest {
+  tenant_id: string;
+}
+
+export interface SwitchTenantResponse {
+  tenant_id: string;
+  access_token: string;
+}
+
+// ── App types ────────────────────────────────────────────────────────────────────
+
+export interface CreateAppRequest {
+  name: string;
+  allowed_origins?: string[];
+  expires_at?: string;
+}
+
+export interface CreateAppResponse {
+  id: string;
+  /** Public identifier for frontend use. */
+  app_id: string;
+  /** Plaintext secret — returned once only. Store securely. */
+  secret: string;
+  created_at: number;
+}
+
+export interface AppItem {
+  id: string;
+  name: string;
+  app_id: string;
+  status: "active" | "revoked";
+  allowed_origins: string[];
+  created_at: number;
+  last_used_at: number | null;
+  secret_rotated_at: number | null;
+  expires_at: string | null;
+}
+
+export interface UpdateAppRequest {
+  name?: string;
+  allowed_origins?: string[];
+}
+
+export interface ResetSecretResponse {
+  id: string;
+  app_id: string;
+  /** New plaintext secret — returned once only. Store securely. */
+  secret: string;
+}
+
+// ── Webhook types ─────────────────────────────────────────────────────────────────
+
+export interface WebhookEndpointCreate {
+  url: string;
+  event_types: string[];
+  description?: string;
+  enabled?: boolean;
+}
+
+export interface WebhookEndpointUpdate {
+  url?: string;
+  event_types?: string[];
+  description?: string;
+  enabled?: boolean;
+}
+
+export interface WebhookEndpointResponse {
+  id: string;
+  tenant_id: string;
+  url: string;
+  event_types: string[];
+  enabled: boolean;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Returned only on create/rotate-secret. Includes the plaintext secret once. */
+export interface WebhookEndpointCreatedResponse extends WebhookEndpointResponse {
+  secret: string;
+}
+
+export interface WebhookEndpointListResponse {
+  data: WebhookEndpointResponse[];
+}
+
+export interface WebhookDeliveryResponse {
+  id: string;
+  endpoint_id: string;
+  event_id: string;
+  event_type: string;
+  tenant_id: string;
+  payload: Record<string, unknown>;
+  attempt: number;
+  status: string;
+  response_code: number | null;
+  response_body: string | null;
+  error: string | null;
+  next_attempt_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookDeliveryListResponse {
+  data: WebhookDeliveryResponse[];
+  total: number;
+  page: number;
+  page_size: number;
 }

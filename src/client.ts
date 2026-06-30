@@ -1,6 +1,12 @@
 import { AudaraiClientConfig, TokenData } from "./types";
 import { ApiError, AuthenticationError, InsufficientBalanceError, RateLimitedError } from "./errors";
 
+/** Options for session token exchange calls. */
+export interface SessionTokenOptions {
+  ttl?: number;
+  one_time?: boolean;
+}
+
 function parseJwtExp(jwt: string): number | null {
   try {
     const b64 = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -130,6 +136,26 @@ export class HttpClient {
       : this._tokenManager.getToken();
   }
 
+  /**
+   * Make an unauthenticated request (no Authorization header).
+   * Used for public endpoints like guest login and official speakers.
+   */
+  async requestNoAuth<T = unknown>(
+    method: string,
+    path: string,
+    options: {
+      body?: BodyInit;
+      headers?: Record<string, string>;
+      query?: Record<string, string | number | boolean | undefined>;
+      expectBinary?: boolean;
+    } = {}
+  ): Promise<T> {
+    const url = this._buildUrl(path, options.query);
+    const headers: Record<string, string> = { ...options.headers };
+    const res = await this._fetch(url, { method, headers, body: options.body });
+    return this._handleResponse<T>(res, options.expectBinary);
+  }
+
   async request<T = unknown>(
     method: string,
     path: string,
@@ -232,10 +258,11 @@ export class AudaraiClient {
       config.accessToken != null,
       config.apiKey != null,
       config.appId != null,
+      config.guestToken != null,
     ].filter(Boolean).length;
     if (authModes !== 1) {
       throw new AuthenticationError(
-        "Exactly one authentication mode must be configured: publishableKey, accessToken, apiKey, or appId."
+        "Exactly one authentication mode must be configured: publishableKey, accessToken, apiKey, appId, or guestToken."
       );
     }
     if (config.appSecret != null && config.appId == null) {
@@ -299,6 +326,23 @@ export class AudaraiClient {
         const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ttl: 300 }),
+        });
+        const body = await res.json();
+        if (body.code !== 0) {
+          throw new AuthenticationError(body.message ?? "Failed to obtain session token");
+        }
+        return body.data as TokenData;
+      };
+    } else if (config.guestToken) {
+      // Guest token (gst_ prefix) — low-privilege, static Bearer token.
+      const gst = config.guestToken;
+      const baseUrl = config.baseUrl.replace(/\/$/, "");
+      tokenProvider = async () => ({ token: gst, expires_in: 86400 });
+      wsTokenProvider = async () => {
+        const res = await fetchImpl(`${baseUrl}/v1/speech/session-tokens`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${gst}`, "Content-Type": "application/json" },
           body: JSON.stringify({ ttl: 300 }),
         });
         const body = await res.json();

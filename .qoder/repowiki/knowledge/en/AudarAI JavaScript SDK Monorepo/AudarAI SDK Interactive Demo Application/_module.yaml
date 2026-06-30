@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: demo_app
+title: AudarAI SDK Interactive Demo Application
+scope:
+    - demo/
+source_files: []
+depends_on: []
+related_to: []
