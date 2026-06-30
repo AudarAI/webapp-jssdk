@@ -70,7 +70,12 @@ export class TtsApi {
     return this._http.request<ModelInfo[]>("GET", "/v1/speech/tts/models");
   }
 
-  /** List available voices/speakers (names only, kept for backward compatibility). */
+  /**
+   * List available voices/speakers (names only).
+   *
+   * @deprecated Names are not unique — use {@link listSpeakersDetailed} to get
+   * `{ id, name }` and address voices by `id`.
+   */
   async listSpeakers(): Promise<string[]> {
     const res = await this._http.request<ListSpeakersResponse>("GET", "/v1/speech/audio/speakers");
     return res.speakers.map((s) => s.name);
@@ -141,11 +146,11 @@ export class TtsApi {
     });
   }
 
-  /** Delete a custom speaker voice profile. */
-  async deleteSpeaker(name: string): Promise<SpeakerOperationResponse> {
+  /** Delete a custom speaker voice profile by its stable id. */
+  async deleteSpeaker(speakerId: string): Promise<SpeakerOperationResponse> {
     return this._http.request<SpeakerOperationResponse>(
       "DELETE",
-      `/v1/speech/audio/speakers/${encodeURIComponent(name)}`,
+      `/v1/speech/audio/speakers/${encodeURIComponent(speakerId)}`,
     );
   }
 
@@ -153,9 +158,11 @@ export class TtsApi {
    * Update a speaker's description, metadata and/or compatible_models without
    * touching the stored reference audio or codes. Any field left ``undefined``
    * is preserved server-side. Pass ``description: ""`` to clear it.
+   *
+   * @param speakerId - The voice's stable id (from {@link listSpeakersDetailed}).
    */
   async updateSpeaker(
-    name: string,
+    speakerId: string,
     patch: {
       description?: string | null;
       compatibleModels?: string[];
@@ -169,7 +176,7 @@ export class TtsApi {
     if (patch.metadata !== undefined) body.metadata = patch.metadata;
     return this._http.request<SpeakerOperationResponse>(
       "PATCH",
-      `/v1/speech/audio/speakers/${encodeURIComponent(name)}`,
+      `/v1/speech/audio/speakers/${encodeURIComponent(speakerId)}`,
       {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -178,17 +185,18 @@ export class TtsApi {
   }
 
   /**
-   * Rename a speaker. The server rejects the call if ``newName`` is already
-   * taken. External references to the old name (e.g. saved playgrounds) need
-   * to be updated separately.
+   * Change a speaker's display name (addressed by id). Names are non-unique,
+   * so this never conflicts.
+   *
+   * @param speakerId - The voice's stable id (from {@link listSpeakersDetailed}).
    */
   async renameSpeaker(
-    name: string,
+    speakerId: string,
     newName: string,
   ): Promise<SpeakerOperationResponse> {
     return this._http.request<SpeakerOperationResponse>(
       "POST",
-      `/v1/speech/audio/speakers/${encodeURIComponent(name)}/rename`,
+      `/v1/speech/audio/speakers/${encodeURIComponent(speakerId)}/rename`,
       {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ new_name: newName }),
@@ -199,9 +207,11 @@ export class TtsApi {
   /**
    * Replace a speaker's reference audio + transcript. The server re-encodes
    * codes for every registered codec.
+   *
+   * @param speakerId - The voice's stable id (from {@link listSpeakersDetailed}).
    */
   async replaceSpeakerAudio(
-    name: string,
+    speakerId: string,
     audioFile: Blob | File,
     transcript: string,
   ): Promise<SpeakerOperationResponse> {
@@ -210,7 +220,7 @@ export class TtsApi {
     form.append("transcript", transcript);
     return this._http.request<SpeakerOperationResponse>(
       "PUT",
-      `/v1/speech/audio/speakers/${encodeURIComponent(name)}/audio`,
+      `/v1/speech/audio/speakers/${encodeURIComponent(speakerId)}/audio`,
       { body: form },
     );
   }
@@ -218,11 +228,13 @@ export class TtsApi {
   /**
    * Fetch a speaker's stored reference audio as a Blob.
    * Useful for inline playback in voice management UIs.
+   *
+   * @param speakerId - The voice's stable id (from {@link listSpeakersDetailed}).
    */
-  async getSpeakerAudio(name: string): Promise<Blob> {
+  async getSpeakerAudio(speakerId: string): Promise<Blob> {
     const res = await this._http.request<Response>(
       "GET",
-      `/v1/speech/audio/speakers/${encodeURIComponent(name)}/audio`,
+      `/v1/speech/audio/speakers/${encodeURIComponent(speakerId)}/audio`,
       { expectBinary: true },
     );
     return res.blob();

@@ -75,6 +75,9 @@ export interface VoiceMetadata {
 }
 
 export interface Speaker {
+  /** Stable server-assigned UUID for the voice. The `name` is a mutable label;
+   * use `id` when a durable identifier is needed. */
+  id?: string;
   name: string;
   description?: string;
   reference_text?: string;
@@ -126,7 +129,8 @@ export interface WordTimestamp {
 }
 
 export interface SynthesizeOptions {
-  /** Speaker / voice profile name */
+  /** Voice id (the stable `id` from `listSpeakersDetailed`). The literal
+   * `"default"` is accepted as a sentinel for the configured default voice. */
   voice?: string;
   /** TTS model: tts-1 | tts-1-hd. Default: tts-1 */
   model?: string;
