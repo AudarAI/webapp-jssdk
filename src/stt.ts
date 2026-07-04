@@ -2,6 +2,7 @@ import { HttpClient } from "./client";
 import {
   ConnectSttWebSocketOptions,
   ModelInfo,
+  SpeakerTurn,
   SttMessage,
   SttWebSocketHandlers,
   TranscribeOptions,
@@ -15,6 +16,12 @@ export interface TranscribeResult {
   text: string;
   language?: string;
   timestamps?: WordTimestamp[];
+  /** Speaker-attributed turns. Present when diarize_model was set. */
+  turns?: SpeakerTurn[];
+  /** Distinct speaker labels. Present when diarize_model was set. */
+  speakers?: string[];
+  /** Number of distinct speakers. Present when diarize_model was set. */
+  n_speakers?: number;
 }
 
 /** Wraps the STT WebSocket with typed message handling (v2 protocol). */
@@ -43,6 +50,9 @@ export class SttWebSocket {
           break;
         case "segment":
           handlers.onSegment?.(msg);
+          break;
+        case "speaker_turn":
+          handlers.onSpeakerTurn?.(msg);
           break;
         case "final":
           handlers.onFinal?.(msg);
@@ -95,6 +105,8 @@ export class SttApi {
     form.append("file", audio);
     if (fields.language) form.append("language", fields.language);
     if (fields.forced_alignment != null) form.append("forced_alignment", String(fields.forced_alignment));
+    if (fields.asr_model) form.append("asr_model", fields.asr_model);
+    if (fields.diarize_model) form.append("diarize_model", fields.diarize_model);
     return this._http.request<TranscribeResult>("POST", "/v1/speech/audio/transcriptions", {
       body: form,
       query: provider ? { provider } : undefined,
@@ -118,11 +130,13 @@ export class SttApi {
     options: TranscribeStreamOptions = {},
     handlers: TranscribeStreamHandlers = {},
   ): Promise<TranscribeResult> {
-    const { provider, language, forced_alignment } = options;
+    const { provider, language, forced_alignment, asr_model, diarize_model } = options;
     const form = new FormData();
     form.append("file", audio);
     if (language) form.append("language", language);
     if (forced_alignment != null) form.append("forced_alignment", String(forced_alignment));
+    if (asr_model) form.append("asr_model", asr_model);
+    if (diarize_model) form.append("diarize_model", diarize_model);
 
     const resp = await this._http.request<Response>("POST", "/v1/speech/audio/transcriptions/stream", {
       body: form,
@@ -179,6 +193,9 @@ export class SttApi {
       text: finalChunk?.text ?? "",
       language: finalChunk?.language,
       timestamps: finalChunk?.timestamps,
+      turns: finalChunk?.turns,
+      speakers: finalChunk?.speakers,
+      n_speakers: finalChunk?.n_speakers,
     };
   }
 
@@ -209,6 +226,8 @@ export class SttApi {
     if (options.forced_alignment != null) {
       params.set("forced_alignment", String(options.forced_alignment));
     }
+    if (options.asr_model) params.set("asr_model", options.asr_model);
+    if (options.diarize_model) params.set("diarize_model", options.diarize_model);
 
     const ws = new WebSocket(`${wsBase}/v1/speech/audio/transcriptions/ws?${params}`);
     return new SttWebSocket(ws, handlers);

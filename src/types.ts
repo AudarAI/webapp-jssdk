@@ -120,12 +120,27 @@ export interface ModelInfo {
   kind: string;
   /** True for the default row of this kind (used when caller omits `provider`). */
   is_default: boolean;
+  /** STT only: model accepts the `asr_model` dialect selector. */
+  supports_asr_model?: boolean;
+  /** STT only: model accepts the `diarize_model` speaker-diarization selector. */
+  supports_diarize?: boolean;
 }
 
 export interface WordTimestamp {
   text: string;
   start_time: number;
   end_time: number;
+}
+
+/** One speaker-attributed segment of a diarized transcription. */
+export interface SpeakerTurn {
+  speaker: string;
+  /** Transcribed text of the turn. Absent in speakers-only mode (diarize_model="speakers"). */
+  text?: string | null;
+  /** Segment start, absolute seconds within the audio. */
+  start: number;
+  /** Segment end, absolute seconds within the audio. */
+  end: number;
 }
 
 export interface SynthesizeOptions {
@@ -159,6 +174,10 @@ export interface TranscribeOptions {
   forced_alignment?: boolean;
   /** ASR provider: flash | turbo */
   provider?: string;
+  /** Dialect model selector, e.g. "emirati" | "saudi". Requires a model with `supports_asr_model`. */
+  asr_model?: string;
+  /** Diarization mode: "none" | "audar-diarization-v1" (words + speakers) | "speakers" (speakers only, batch route only). Requires a model with `supports_diarize`. */
+  diarize_model?: string;
 }
 
 export interface TranscribeStreamOptions {
@@ -167,6 +186,10 @@ export interface TranscribeStreamOptions {
   provider?: string;
   /** Request word-level timestamps (returned in the final chunk). */
   forced_alignment?: boolean;
+  /** Dialect model selector, e.g. "emirati" | "saudi". Requires a model with `supports_asr_model`. */
+  asr_model?: string;
+  /** Diarization mode: "none" | "audar-diarization-v1" (words + speakers). "speakers" is rejected on the stream route. Requires a model with `supports_diarize`. */
+  diarize_model?: string;
 }
 
 // ── STT SSE stream message types ─────────────────────────────────────────────
@@ -180,6 +203,12 @@ export interface TranscribeStreamChunk {
   timestamps?: WordTimestamp[];
   /** Set to "unavailable" when forced_alignment was requested but the model emitted no timestamps. */
   alignment?: "unavailable";
+  /** Speaker-attributed turns. Present on the final chunk when diarize_model was set. */
+  turns?: SpeakerTurn[];
+  /** Distinct speaker labels found in the audio. Present when diarize_model was set. */
+  speakers?: string[];
+  /** Number of distinct speakers. Present when diarize_model was set. */
+  n_speakers?: number;
 }
 
 export interface TranscribeStreamHandlers {
@@ -197,6 +226,10 @@ export interface ConnectSttWebSocketOptions {
   language?: string;
   /** Request word-level timestamps on partial/segment/final messages. */
   forced_alignment?: boolean;
+  /** Dialect model selector, e.g. "emirati" | "saudi". Requires a model with `supports_asr_model`. */
+  asr_model?: string;
+  /** Diarization mode: "none" | "audar-diarization-v1" (words + speakers) | "speakers" (speakers only — no ASR; server emits `speaker_turn` frames). Requires a model with `supports_diarize`. */
+  diarize_model?: string;
 }
 
 // ── STT WebSocket message types ───────────────────────────────────────────────
@@ -228,6 +261,8 @@ export interface SttSegmentMessage {
   /** Session-relative word timestamps for this segment. */
   timestamps?: WordTimestamp[];
   alignment?: "unavailable";
+  /** Speaker label for this segment. Present when diarize_model was set. */
+  speaker?: string;
 }
 
 export interface SttFinalMessage {
@@ -238,6 +273,12 @@ export interface SttFinalMessage {
   /** Session-relative word timestamps for the entire session. */
   timestamps?: WordTimestamp[];
   alignment?: "unavailable";
+  /** Speaker-attributed turns for the session. Present when diarize_model was set. */
+  turns?: SpeakerTurn[];
+  /** Distinct speaker labels. Present when diarize_model was set. */
+  speakers?: string[];
+  /** Number of distinct speakers. Present when diarize_model was set. */
+  n_speakers?: number;
 }
 
 export interface SttErrorMessage {
@@ -245,10 +286,22 @@ export interface SttErrorMessage {
   message: string;
 }
 
+/** Live closed speaker turn — emitted in speakers-only sessions (diarize_model="speakers"). */
+export interface SttSpeakerTurnMessage {
+  type: "speaker_turn";
+  turn_index: number;
+  speaker: string;
+  /** Turn start, absolute seconds within the session audio. */
+  start: number;
+  /** Turn end, absolute seconds within the session audio. */
+  end: number;
+}
+
 export type SttMessage =
   | SttReadyMessage
   | SttPartialMessage
   | SttSegmentMessage
+  | SttSpeakerTurnMessage
   | SttFinalMessage
   | SttErrorMessage;
 
@@ -259,6 +312,8 @@ export interface SttWebSocketHandlers {
   onPartial?: (msg: SttPartialMessage) => void;
   /** Called when a speech segment is finalized. */
   onSegment?: (msg: SttSegmentMessage) => void;
+  /** Called when a speaker turn closes (speakers-only sessions, diarize_model="speakers"). */
+  onSpeakerTurn?: (msg: SttSpeakerTurnMessage) => void;
   /** Called when the session is fully complete. */
   onFinal?: (msg: SttFinalMessage) => void;
   /** Called on pipeline error. */
