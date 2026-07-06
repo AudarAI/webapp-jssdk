@@ -1,0 +1,2 @@
+- **Runtime Agnostic**: Designed for both Browser and Node.js environments, using `globalThis.fetch` and polyfills for `btoa`/`Buffer`.
+- **Real-time Protocols**: Utilizes Server-Sent Events (SSE) for streaming transcription/translation and WebSockets for low-latency bidirectional audio streams.

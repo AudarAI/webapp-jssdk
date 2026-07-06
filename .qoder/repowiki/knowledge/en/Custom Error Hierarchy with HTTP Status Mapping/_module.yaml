@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: error_handling
+title: Custom Error Hierarchy with HTTP Status Mapping
+scope: []
+source_files:
+    - src/errors.ts
+    - src/client.ts
+    - src/auth.ts
+    - src/index.ts
+    - src/stt.ts
+    - demo/src/composables/useLog.ts
+depends_on: []
+related_to: []

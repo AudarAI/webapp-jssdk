@@ -1,0 +1,5 @@
+- Entry point: `src/main.ts` bootstraps a standard Vue 3 app mounting `App.vue`.
+- Layout: `App.vue` implements a two-column layout with a persistent sidebar for connection management (`ConnectPanel`) and feature navigation, and a main content area that conditionally renders feature panels based on connection state.
+- State Management: Shared module-level state is managed via Vue composables. `useClient` maintains a singleton `AudaraiClient` instance and connection status, while `useLog` provides a centralized logging mechanism consumed by panels.
+- Feature Modularity: Each SDK capability (e.g., Agents, TTS, STT, Rooms) is encapsulated in its own Vue component (e.g., `AgentPanel.vue`, `TtsPanel.vue`), which directly consumes the shared client composable to invoke SDK methods.
+- Build Configuration: `vite.config.ts` uses path aliasing to resolve `@audarai/sdk` to the parent directory's source code during development, enabling hot-module replacement (HMR) for SDK changes without requiring a separate build step.

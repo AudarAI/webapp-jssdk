@@ -1,0 +1,4 @@
+- API modules are implemented as classes (e.g., `TtsApi`, `AgentApi`) that accept an `HttpClient` instance in their constructor to share authentication and base URL configuration.
+- All asynchronous API methods return strongly-typed Promises using interfaces defined in `src/types.ts`, ensuring consistent response shapes across the SDK.
+- Real-time streaming methods (SSE or WebSocket) accept handler objects (e.g., `SttWebSocketHandlers`) with optional callbacks like `onChunk`, `onFinal`, and `onError` for event-driven processing.
+- Authentication logic is centralized in `TokenManager` within `client.ts`, supporting static tokens, async providers, and automatic refresh thresholds to prevent expiry during requests.

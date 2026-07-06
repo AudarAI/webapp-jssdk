@@ -1,0 +1,1 @@
+A TypeScript monorepo orchestrating the AudarAI client library and its interactive Vue 3 demo application via a local workspace dependency.

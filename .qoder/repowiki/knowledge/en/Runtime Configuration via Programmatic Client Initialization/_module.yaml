@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: configuration_system
+title: Runtime Configuration via Programmatic Client Initialization
+scope: []
+source_files:
+    - src/types.ts
+    - src/client.ts
+    - src/auth.ts
+    - src/index.ts
+    - demo/src/components/ConnectPanel.vue
+    - demo/src/composables/useClient.ts
+    - demo/vite.config.ts
+    - package.json
+    - tsconfig.json
+depends_on: []
+related_to: []

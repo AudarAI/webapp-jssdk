@@ -71,7 +71,22 @@ export class TtsApi {
   }
 
   /**
-   * List available voices/speakers (names only).
+   * List voices flagged for the official website (public, no auth required).
+   * This endpoint does not require authentication.
+   *
+   * @param model - When set, filters to speakers whose `compatible_models` includes this name.
+   */
+  async listOfficialSpeakers(model?: string): Promise<Speaker[]> {
+    const res = await this._http.requestNoAuth<ListSpeakersResponse>(
+      "GET",
+      "/v1/speech/audio/official-speakers",
+      { query: model ? { model } : undefined },
+    );
+    return res.speakers ?? [];
+  }
+
+  /**
+   * List available voices/speakers (names only, kept for backward compatibility).
    *
    * @deprecated Names are not unique — use {@link listSpeakersDetailed} to get
    * `{ id, name }` and address voices by `id`.

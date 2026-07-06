@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: frontend_style
+title: Vanilla CSS with Global Stylesheet and Scoped Component Overrides
+scope: []
+source_files:
+    - demo/src/style.css
+    - demo/src/App.vue
+    - demo/src/components/ConnectPanel.vue
+    - demo/src/components/TtsPanel.vue
+    - demo/src/components/AgentPanel.vue
+    - demo/package.json
+    - demo/vite.config.ts
+depends_on: []
+related_to: []

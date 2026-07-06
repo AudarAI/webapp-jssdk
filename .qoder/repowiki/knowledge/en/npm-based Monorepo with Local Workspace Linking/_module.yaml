@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: dependency_management
+title: npm-based Monorepo with Local Workspace Linking
+scope: []
+source_files:
+    - package.json
+    - demo/package.json
+    - package-lock.json
+    - demo/package-lock.json
+depends_on: []
+related_to: []

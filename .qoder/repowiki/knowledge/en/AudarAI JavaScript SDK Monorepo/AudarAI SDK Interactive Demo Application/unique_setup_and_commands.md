@@ -1,0 +1,3 @@
+- Development Server: `npm run dev` starts Vite with `--host` enabled for network accessibility.
+- SDK Linking: The `@audarai/sdk` dependency is linked via `file:..` in `package.json`, requiring the parent directory to contain the SDK source code.
+- Build Process: `npm run build` executes `vue-tsc` for type checking before invoking `vite build`.

@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: logging_system
+title: UI-Scoped Event Logging System
+scope: []
+source_files:
+    - demo/src/composables/useLog.ts
+    - demo/src/components/LogBox.vue
+    - src/errors.ts
+depends_on: []
+related_to: []

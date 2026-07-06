@@ -1,0 +1,1 @@
+Vue 3 (Composition API) with TypeScript, built using Vite. Integrates `livekit-client` for real-time audio transport and WebRTC handling within voice features.

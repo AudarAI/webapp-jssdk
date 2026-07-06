@@ -1,5 +1,5 @@
 import { HttpClient } from "./client";
-import { RoomCreate, RoomUpdate, RoomResponse, RoomAddAgent, RoomAgentListResponse, SessionCreate, SessionResponse } from "./types";
+import { RoomCreate, RoomUpdate, RoomResponse, RoomAddAgent, RoomAgentListResponse, SessionCreate, SessionResponse, LiveKitTokenRequest, LiveKitTokenResponse, VoiceSessionResponse } from "./types";
 
 export class RoomApi {
   constructor(private readonly _http: HttpClient) {}
@@ -104,5 +104,62 @@ export class RoomApi {
       "GET",
       `/v1/agent/rooms/${encodeURIComponent(roomId)}/sessions`,
     );
+  }
+
+  /**
+   * Start a session for a multi-agent room and fetch its LiveKit token in a
+   * single call — the room-level equivalent of `agent.createVoiceSession()`.
+   *
+   * Combines `startSession()` + the session livekit-token endpoint so callers
+   * get ready-to-connect credentials (`token` + `livekit_url`) without a second
+   * round-trip. Session-scoped fields (`voice_id`, `config`, `participants`,
+   * `media_overrides`) configure the session; identity fields (`user_id`,
+   * `user_name`) and interruption overrides are applied to the LiveKit token.
+   *
+   * @example
+   * const res = await client.agent.rooms.createVoiceSession(roomId, {
+   *   user_name: "Website Visitor",
+   * });
+   * const room = new Room();
+   * await room.connect(res.livekit_url, res.token);
+   */
+  async createVoiceSession(
+    roomId: string,
+    data?: SessionCreate & LiveKitTokenRequest,
+  ): Promise<VoiceSessionResponse> {
+    const d = data ?? {};
+    const session = await this.startSession(roomId, {
+      ...(d.voice_id ? { voice_id: d.voice_id } : {}),
+      ...(d.config ? { config: d.config } : {}),
+      ...(d.participants ? { participants: d.participants } : {}),
+      ...(d.media_overrides ? { media_overrides: d.media_overrides } : {}),
+    });
+
+    const tokenReq: LiveKitTokenRequest = {
+      ...(d.user_id ? { user_id: d.user_id } : {}),
+      ...(d.user_name ? { user_name: d.user_name } : {}),
+      ...(d.media_overrides ? { media_overrides: d.media_overrides } : {}),
+      ...(d.allow_interruptions !== undefined ? { allow_interruptions: d.allow_interruptions } : {}),
+      ...(d.allow_interruptions_opening !== undefined
+        ? { allow_interruptions_opening: d.allow_interruptions_opening }
+        : {}),
+    };
+    const hasTokenReq = Object.keys(tokenReq).length > 0;
+
+    const lk = await this._http.request<LiveKitTokenResponse>(
+      "POST",
+      `/v1/agent/sessions/${encodeURIComponent(session.id)}/livekit-token`,
+      hasTokenReq
+        ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(tokenReq) }
+        : undefined,
+    );
+
+    return {
+      session_id: lk.session_id ?? session.id,
+      room_id: session.room_id,
+      token: lk.token,
+      room_name: lk.room_name,
+      livekit_url: lk.livekit_url,
+    };
   }
 }
