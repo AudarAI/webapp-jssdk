@@ -217,13 +217,14 @@ export class SttApi {
     options: ConnectSttWebSocketOptions = {},
     handlers: SttWebSocketHandlers = {},
   ): Promise<SttWebSocket> {
-    const baseUrl = this._http.getBaseUrl();
-    const wsBase = baseUrl.replace(/^http/, "ws");
+    const wsBase = this._http.getWsBaseUrl();
     const token = await this._http.getWebSocketToken();
 
     const params = new URLSearchParams({ token });
     if (options.provider) params.set("provider", options.provider);
     if (options.language) params.set("language", options.language);
+    if (options.asr_model) params.set("asr_model", options.asr_model);
+    if (options.context) params.set("context", options.context);
     if (options.forced_alignment != null) {
       params.set("forced_alignment", String(options.forced_alignment));
     }

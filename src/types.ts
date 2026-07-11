@@ -7,6 +7,14 @@ export interface TokenData {
 export interface AudaraiClientConfig {
   baseUrl: string;
   /**
+   * Absolute base URL for WebSocket connections (wss://... or https://...).
+   * REQUIRED when `baseUrl` is relative (the recommended browser setup proxies
+   * HTTP through same-origin rewrites, but proxies/rewrites do not forward
+   * WebSocket upgrades — sockets must go direct to the API host; WS is exempt
+   * from CORS). Defaults to `baseUrl` when that is absolute.
+   */
+  wsBaseUrl?: string;
+  /**
    * Publishable key (pk_ prefix).
    * All requests (HTTP and WebSocket) use a short-lived session token (stk_)
    * automatically obtained from the publishable key.
@@ -235,6 +243,9 @@ export interface ConnectSttWebSocketOptions {
   language?: string;
   /** Request word-level timestamps on partial/segment/final messages. */
   forced_alignment?: boolean;
+  /** Context-biasing hint: comma-separated domain terms likely to occur
+   * (product names, OTP phrases). Applied to turn-final decodes (backend >= v-0.2.39). */
+  context?: string;
   /** Dialect model selector, e.g. "emirati" | "saudi". Requires a model with `supports_asr_model`. */
   asr_model?: string;
   /** Diarization mode: "none" | "audar-diarization-v1" (words + speakers) | "speakers" (speakers only — no ASR; server emits `speaker_turn` frames). Requires a model with `supports_diarize`. */

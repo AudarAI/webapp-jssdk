@@ -98,6 +98,7 @@ class TokenManager {
 
 export class HttpClient {
   private readonly _baseUrl: string;
+  private readonly _wsBaseUrl: string | null;
   readonly _tokenManager: TokenManager;
   private readonly _wsTokenManager: TokenManager | null;
   private readonly _fetch: typeof globalThis.fetch;
@@ -111,8 +112,10 @@ export class HttpClient {
     wsTokenManager?: TokenManager,
     onTokenRefresh?: () => Promise<string>,
     authScheme: string = "Bearer",
+    wsBaseUrl?: string,
   ) {
     this._baseUrl = baseUrl.replace(/\/$/, "");
+    this._wsBaseUrl = wsBaseUrl ? wsBaseUrl.replace(/\/$/, "") : null;
     this._tokenManager = tokenManager;
     this._wsTokenManager = wsTokenManager ?? null;
     this._fetch = fetchImpl;
@@ -122,6 +125,25 @@ export class HttpClient {
 
   getBaseUrl(): string {
     return this._baseUrl;
+  }
+
+  /**
+   * Absolute ws(s):// base for WebSocket connections.
+   *
+   * Uses `wsBaseUrl` when configured, else derives from an absolute `baseUrl`.
+   * Throws when only a relative `baseUrl` is available: rewrites/proxies do
+   * not forward WebSocket upgrades, and `new WebSocket('/path')` is not
+   * portable — silently producing a broken socket was worse than failing.
+   */
+  getWsBaseUrl(): string {
+    const src = this._wsBaseUrl ?? this._baseUrl;
+    if (/^https?:\/\//.test(src)) return src.replace(/^http/, "ws");
+    if (/^wss?:\/\//.test(src)) return src;
+    throw new Error(
+      "WebSocket connections need an absolute URL. Set `wsBaseUrl` in " +
+        "createAudaraiClient(...) (e.g. 'https://prod.audarai.com/apiv2') — " +
+        `baseUrl '${this._baseUrl}' is relative and proxies don't forward WS upgrades.`,
+    );
   }
 
   /** Get the current token for HTTP requests (fetches/refreshes if needed). */
@@ -404,6 +426,7 @@ export class AudaraiClient {
       wsTokenManager,
       config.onTokenRefresh,
       authScheme,
+      config.wsBaseUrl,
     );
 
     // Auto pre-warm DNS/TLS for LiveKit server
