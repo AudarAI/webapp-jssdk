@@ -94,6 +94,7 @@ export class SttApi {
     const form = new FormData();
     form.append("file", audio);
     if (fields.language) form.append("language", fields.language);
+    if (fields.context) form.append("context", fields.context);
     if (fields.forced_alignment != null) form.append("forced_alignment", String(fields.forced_alignment));
     return this._http.request<TranscribeResult>("POST", "/v1/speech/audio/transcriptions", {
       body: form,
