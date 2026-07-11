@@ -177,6 +177,9 @@ export interface SynthesizeOptions {
 
 export interface TranscribeOptions {
   language?: string;
+  /** Context-biasing hint: domain terms/phrases likely to occur in the audio
+   *  (e.g. product names, "رمز التحقق، التجوال"). Improves keyword accuracy. */
+  context?: string;
   forced_alignment?: boolean;
   /** ASR provider: flash | turbo */
   provider?: string;

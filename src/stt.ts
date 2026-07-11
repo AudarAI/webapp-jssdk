@@ -104,6 +104,7 @@ export class SttApi {
     const form = new FormData();
     form.append("file", audio);
     if (fields.language) form.append("language", fields.language);
+    if (fields.context) form.append("context", fields.context);
     if (fields.forced_alignment != null) form.append("forced_alignment", String(fields.forced_alignment));
     if (fields.asr_model) form.append("asr_model", fields.asr_model);
     if (fields.diarize_model) form.append("diarize_model", fields.diarize_model);
