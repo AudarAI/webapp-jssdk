@@ -5,8 +5,29 @@ import {
   Speaker,
   SpeakerOperationResponse,
   SynthesizeOptions,
+  TimedStreamEvent,
+  TimedSynthesisResult,
   VoiceMetadata,
 } from "./types";
+
+/** Build the shared TTS request body from options. */
+function _synthBody(text: string, options: SynthesizeOptions): Record<string, unknown> {
+  const { voice, model, response_format, speed,
+          temperature, top_p, top_k, seed, min_tokens, max_tokens } = options;
+  return {
+    text,
+    voice:           voice           || "default",
+    model:           model           || "tts-1",
+    response_format: response_format || "mp3",
+    speed:           speed           ?? 1.0,
+    ...(temperature !== undefined ? { temperature } : {}),
+    ...(top_p       !== undefined ? { top_p }       : {}),
+    ...(top_k       !== undefined ? { top_k }       : {}),
+    ...(seed        !== undefined ? { seed }        : {}),
+    ...(min_tokens  !== undefined ? { min_tokens }  : {}),
+    ...(max_tokens  !== undefined ? { max_tokens }  : {}),
+  };
+}
 
 export class TtsApi {
   constructor(private readonly _http: HttpClient) {}
@@ -63,6 +84,81 @@ export class TtsApi {
       query: provider ? { provider } : undefined,
       expectBinary: true,
     });
+  }
+
+  /**
+   * Synthesize speech WITH句/块级 timing marks (offline). Returns the full audio
+   * (base64) plus an ordered list of marks mapping text spans → audio time
+   * windows, so a reader UI can highlight the chunk currently being read.
+   *
+   * Providers without per-chunk timing (e.g. csm) respond HTTP 501.
+   */
+  async synthesizeTimed(
+    text: string,
+    options: SynthesizeOptions = {},
+  ): Promise<TimedSynthesisResult> {
+    const body = { ..._synthBody(text, options), timestamps: true };
+    const res = await this._http.request<{
+      format: string;
+      sample_rate: number;
+      duration_ms: number;
+      audio_base64: string;
+      marks: TimedSynthesisResult["marks"];
+    }>("POST", "/v1/speech/audio/speech", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      query: options.provider ? { provider: options.provider } : undefined,
+    });
+    return {
+      format: res.format,
+      sampleRate: res.sample_rate,
+      durationMs: res.duration_ms,
+      audioBase64: res.audio_base64,
+      marks: res.marks ?? [],
+    };
+  }
+
+  /**
+   * Streaming synthesis WITH timing marks. Returns an async iterator of NDJSON
+   * events: `{type:"mark"|"audio"|"done", ...}`. Each `mark` precedes its
+   * chunk's `audio` frames; audio frames are base64-encoded. Feed the audio to
+   * a player and use marks to highlight the current chunk.
+   *
+   * Providers without per-chunk timing (e.g. csm) respond HTTP 501.
+   */
+  async synthesizeStreamTimed(
+    text: string,
+    options: SynthesizeOptions = {},
+  ): Promise<AsyncGenerator<TimedStreamEvent>> {
+    const body = { ..._synthBody(text, options), timestamps: true };
+    const res = await this._http.request<Response>("POST", "/v1/speech/audio/speech/stream", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      query: options.provider ? { provider: options.provider } : undefined,
+      expectBinary: true,
+    });
+
+    async function* parse(): AsyncGenerator<TimedStreamEvent> {
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (line) yield JSON.parse(line) as TimedStreamEvent;
+        }
+      }
+      const tail = buf.trim();
+      if (tail) yield JSON.parse(tail) as TimedStreamEvent;
+    }
+
+    return parse();
   }
 
   /** List available TTS models registered in model_management. */

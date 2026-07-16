@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import type { ModelInfo, Speaker } from "@audarai/sdk";
+import type { ModelInfo, Speaker, TimestampMark, TimedStreamEvent } from "@audarai/sdk";
 import { useClient } from "../composables/useClient";
 import { useLog } from "../composables/useLog";
-import { bufferToObjectUrl, downloadBuffer, fmtSize } from "../utils/audio";
+import { base64ToArrayBuffer, bufferToObjectUrl, downloadBuffer, fmtSize, pcmToWav } from "../utils/audio";
 import LogBox from "./LogBox.vue";
 
 const { client } = useClient();
@@ -53,6 +53,11 @@ const synthProvider = ref("");
 const audioSrc      = ref("");
 const loading       = ref(false);
 const audioEl       = ref<HTMLAudioElement | null>(null);
+
+// ── Timed synthesis (句/块级 highlight) ───────────────────────────────────────
+const marks     = ref<TimestampMark[]>([]);
+const readText  = ref("");   // the text the current marks belong to
+const activeIdx = ref(-1);   // index of the chunk currently being read
 
 // ── Reference audio playback (test for getSpeakerAudio) ───────────────────────
 const playingSpeaker       = ref<string | null>(null);
@@ -304,6 +309,159 @@ async function synthesize() {
     log(`Synthesis complete, size: ${fmtSize(buf.byteLength)}`, "ok");
     audioSrc.value = bufferToObjectUrl(buf, format.value);
     downloadBuffer(buf, `tts_output.${format.value}`, format.value);
+  } catch (err) {
+    logError(err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+// ── Timed synthesize (offline) + highlight ────────────────────────────────────
+async function synthesizeTimed() {
+  if (!text.value.trim()) { log("Please enter text", "warn"); return; }
+  clear();
+  loading.value = true;
+  activeIdx.value = -1;
+  log("Timed synthesizing (with marks)...", "info");
+  try {
+    const res = await client.value!.tts.synthesizeTimed(text.value, buildOpts());
+    audioSrc.value = bufferToObjectUrl(base64ToArrayBuffer(res.audioBase64), res.format);
+    readText.value = text.value;
+    marks.value = res.marks;
+    log(`Timed synthesis complete: duration=${res.durationMs}ms, ${res.marks.length} marks`, "ok");
+    await nextTick();
+    audioEl.value?.play().catch(() => {});
+  } catch (err) {
+    logError(err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+/** Index of the last mark whose start_ms <= t(ms). Stays on a chunk until the
+ * next one starts (no gap flicker). Returns -1 before the first mark. */
+function activeMarkIndex(list: TimestampMark[], t: number): number {
+  let lo = 0, hi = list.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (list[mid].start_ms <= t) { ans = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return ans;
+}
+
+function onTimeUpdate() {
+  const el = audioEl.value;
+  if (!el || !marks.value.length) return;
+  const idx = activeMarkIndex(marks.value, el.currentTime * 1000);
+  if (idx !== activeIdx.value) activeIdx.value = idx;
+}
+
+// Renderable segments: plain gaps + highlightable chunks, built from readText+marks.
+const segments = computed(() => {
+  const out: Array<{ text: string; markIndex: number | null; key: string }> = [];
+  let cursor = 0;
+  marks.value.forEach((m, i) => {
+    if (m.char_start > cursor) {
+      out.push({ text: readText.value.slice(cursor, m.char_start), markIndex: null, key: `gap-${i}` });
+    }
+    out.push({ text: readText.value.slice(m.char_start, m.char_end), markIndex: m.index, key: `mark-${i}` });
+    cursor = Math.max(cursor, m.char_end);
+  });
+  if (cursor < readText.value.length) {
+    out.push({ text: readText.value.slice(cursor), markIndex: null, key: "tail" });
+  }
+  return out;
+});
+
+// ── Timed stream (play-while-streaming + highlight) ───────────────────────────
+// Reuses the SAME <audio> + @timeupdate + segments highlight as offline: marks
+// accumulate into `marks` as they arrive, and playback advances the shared
+// <audio> currentTime which onTimeUpdate maps to the active chunk.
+
+type StreamEvents = AsyncGenerator<TimedStreamEvent>;
+
+/** Append a streamed mark event to the reactive `marks` list. Stream marks
+ * carry no end_ms (highlight only needs start_ms), so we fill it with start_ms. */
+function pushStreamMark(ev: { index: number; text: string; char_start: number; char_end: number; start_ms: number }) {
+  marks.value = [...marks.value, {
+    index: ev.index, text: ev.text,
+    char_start: ev.char_start, char_end: ev.char_end,
+    start_ms: ev.start_ms, end_ms: ev.start_ms,
+  }];
+}
+
+/** True play-while-streaming for MSE-capable formats (mp3/aac). */
+async function timedStreamMse(events: StreamEvents, mime: string) {
+  const ms = new MediaSource();
+  audioSrc.value = URL.createObjectURL(ms);
+  await nextTick();
+
+  const sb: SourceBuffer = await new Promise((resolve, reject) => {
+    ms.addEventListener("sourceopen", () => {
+      try { resolve(ms.addSourceBuffer(mime)); } catch (e) { reject(e); }
+    }, { once: true });
+  });
+
+  const queue: ArrayBuffer[] = [];
+  let started = false, ended = false, frames = 0, markCount = 0;
+  const pump = () => {
+    if (sb.updating || queue.length === 0) return;
+    sb.appendBuffer(queue.shift()!);
+  };
+  sb.addEventListener("updateend", () => {
+    if (!started) { started = true; audioEl.value?.play().catch(() => {}); }
+    pump();
+    if (ended && queue.length === 0 && !sb.updating) {
+      try { ms.endOfStream(); } catch { /* ignore */ }
+    }
+  });
+
+  for await (const ev of events) {
+    if (ev.type === "mark") { markCount++; pushStreamMark(ev); }
+    else if (ev.type === "audio") { frames++; queue.push(base64ToArrayBuffer(ev.audio_base64)); pump(); }
+    else { log(`done: duration=${ev.duration_ms}ms (${markCount} marks, ${frames} frames)`, "ok"); }
+  }
+  ended = true;
+  while (queue.length > 0 || sb.updating) { await new Promise((r) => setTimeout(r, 30)); pump(); }
+  try { ms.endOfStream(); } catch { /* ignore */ }
+}
+
+/** Buffered fallback for non-MSE formats (pcm/wav/…): collect frames + marks,
+ * assemble, then play. Highlight still works via the shared <audio>. */
+async function timedStreamBuffered(events: StreamEvents, fmt: typeof format.value) {
+  const chunks: Uint8Array[] = [];
+  let frames = 0, markCount = 0;
+  for await (const ev of events) {
+    if (ev.type === "mark") { markCount++; pushStreamMark(ev); }
+    else if (ev.type === "audio") { frames++; chunks.push(new Uint8Array(base64ToArrayBuffer(ev.audio_base64))); }
+    else { log(`done: duration=${ev.duration_ms}ms (${markCount} marks, ${frames} frames)`, "ok"); }
+  }
+  const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+  const merged = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { merged.set(c, off); off += c.byteLength; }
+  // Raw PCM needs a WAV container to play in <audio>; other formats pass through.
+  const buf = fmt === "pcm" ? pcmToWav(merged.buffer, 24000) : merged.buffer;
+  audioSrc.value = bufferToObjectUrl(buf, fmt === "pcm" ? "wav" : fmt);
+  await nextTick();
+  audioEl.value?.play().catch(() => {});
+}
+
+async function synthesizeStreamTimed() {
+  if (!text.value.trim()) { log("Please enter text", "warn"); return; }
+  clear();
+  loading.value = true;
+  activeIdx.value = -1;
+  marks.value = [];
+  readText.value = text.value;
+  log("Timed streaming (highlight)...", "info");
+  try {
+    const fmt = format.value;
+    const mime = pickMseMime(fmt);
+    const events = await client.value!.tts.synthesizeStreamTimed(text.value, buildOpts());
+    if (mime) { log(`MSE streaming as ${mime}`, "info"); await timedStreamMse(events, mime); }
+    else { await timedStreamBuffered(events, fmt); }
   } catch (err) {
     logError(err);
   } finally {
@@ -580,10 +738,49 @@ async function synthesizeStream() {
       <div class="btn-row">
         <button class="btn btn-primary" :disabled="loading" @click="synthesize">Synthesize</button>
         <button class="btn btn-outline" :disabled="loading" @click="synthesizeStream">Stream Synthesize</button>
+        <button class="btn btn-outline" :disabled="loading" @click="synthesizeTimed">Timed Synthesize (highlight)</button>
+        <button class="btn btn-outline" :disabled="loading" @click="synthesizeStreamTimed">Timed Stream (highlight)</button>
       </div>
 
-      <audio v-if="audioSrc" ref="audioEl" :src="audioSrc" controls class="audio-player" />
+      <audio
+        v-if="audioSrc"
+        ref="audioEl"
+        :src="audioSrc"
+        controls
+        class="audio-player"
+        @timeupdate="onTimeUpdate"
+        @ended="activeIdx = -1"
+      />
+
+      <!-- Read-along transcript: current chunk highlights as the audio plays -->
+      <p v-if="segments.length" class="reader-transcript">
+        <template v-for="seg in segments" :key="seg.key">
+          <span
+            v-if="seg.markIndex !== null"
+            :class="{ 'reader-active': seg.markIndex === activeIdx }"
+          >{{ seg.text }}</span>
+          <span v-else>{{ seg.text }}</span>
+        </template>
+      </p>
+
       <LogBox :entries="entries" />
     </div>
   </div>
 </template>
+
+<style scoped>
+.reader-transcript {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 1.05rem;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+.reader-transcript .reader-active {
+  background: #fde68a;
+  border-radius: 3px;
+  transition: background-color 0.15s ease;
+}
+</style>

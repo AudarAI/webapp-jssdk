@@ -183,6 +183,43 @@ export interface SynthesizeOptions {
   max_tokens?: number;
 }
 
+/** A句/块级 timing mark: the audio time window for one text chunk, plus its
+ * character range in the source text (for highlight-as-you-read UIs). */
+export interface TimestampMark {
+  /** 0-based chunk index. */
+  index: number;
+  /** The chunk text being spoken. */
+  text: string;
+  /** Start offset (inclusive) in the source text. */
+  char_start: number;
+  /** End offset (exclusive) in the source text. */
+  char_end: number;
+  /** Audio start time of this chunk, milliseconds. */
+  start_ms: number;
+  /** Audio end time of this chunk, milliseconds. */
+  end_ms: number;
+}
+
+/** Result of {@link TtsApi.synthesizeTimed} — audio plus句/块级 marks. */
+export interface TimedSynthesisResult {
+  /** Audio container/codec of `audioBase64`. */
+  format: string;
+  /** Sample rate of the decoded audio. */
+  sampleRate: number;
+  /** Total audio duration, milliseconds. */
+  durationMs: number;
+  /** Base64-encoded audio bytes. */
+  audioBase64: string;
+  /** Per-chunk timing marks, ordered by `start_ms`. */
+  marks: TimestampMark[];
+}
+
+/** A single NDJSON event from {@link TtsApi.synthesizeStreamTimed}. */
+export type TimedStreamEvent =
+  | { type: "mark"; index: number; text: string; char_start: number; char_end: number; start_ms: number }
+  | { type: "audio"; audio_base64: string }
+  | { type: "done"; duration_ms: number };
+
 export interface TranscribeOptions {
   language?: string;
   /** Context-biasing hint: domain terms/phrases likely to occur in the audio
