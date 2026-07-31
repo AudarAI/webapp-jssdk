@@ -28,6 +28,7 @@ export type {
   SpeakerOperationResponse,
   ModelInfo,
   WordTimestamp,
+  TranscriptionSegment,
   SpeakerTurn,
   SynthesizeOptions,
   TimestampMark,

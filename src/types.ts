@@ -146,6 +146,19 @@ export interface WordTimestamp {
   end_time: number;
 }
 
+/** A grouped run of adjacent words (same speaker, small time gap) — the unit a
+ * human reads as a sentence. Coarser than `WordTimestamp` (which is word- and,
+ * for CJK, character-level) and available without diarization (unlike `turns`). */
+export interface TranscriptionSegment {
+  text: string;
+  /** Segment start, absolute seconds within the audio. */
+  start: number;
+  /** Segment end, absolute seconds within the audio. */
+  end: number;
+  /** Speaker label. Present only under diarization. */
+  speaker?: string | null;
+}
+
 /** One speaker-attributed segment of a diarized transcription. */
 export interface SpeakerTurn {
   speaker: string;
@@ -257,6 +270,9 @@ export interface TranscribeStreamChunk {
   timestamps?: WordTimestamp[];
   /** Set to "unavailable" when forced_alignment was requested but the model emitted no timestamps. */
   alignment?: "unavailable";
+  /** Grouped, sentence-level segments. Present on the final chunk when
+   * forced_alignment or diarize_model was set. */
+  segments?: TranscriptionSegment[];
   /** Speaker-attributed turns. Present on the final chunk when diarize_model was set. */
   turns?: SpeakerTurn[];
   /** Distinct speaker labels found in the audio. Present when diarize_model was set. */

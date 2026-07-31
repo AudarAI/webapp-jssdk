@@ -9,6 +9,7 @@ import {
   TranscribeStreamChunk,
   TranscribeStreamHandlers,
   TranscribeStreamOptions,
+  TranscriptionSegment,
   WordTimestamp,
 } from "./types";
 
@@ -16,6 +17,10 @@ export interface TranscribeResult {
   text: string;
   language?: string;
   timestamps?: WordTimestamp[];
+  /** Grouped, sentence-level segments (adjacent same-speaker word runs).
+   * Present when forced_alignment or diarize_model was set. Coarser than
+   * `timestamps` (word/char level). */
+  segments?: TranscriptionSegment[];
   /** Speaker-attributed turns. Present when diarize_model was set. */
   turns?: SpeakerTurn[];
   /** Distinct speaker labels. Present when diarize_model was set. */
@@ -194,6 +199,7 @@ export class SttApi {
       text: finalChunk?.text ?? "",
       language: finalChunk?.language,
       timestamps: finalChunk?.timestamps,
+      segments: finalChunk?.segments,
       turns: finalChunk?.turns,
       speakers: finalChunk?.speakers,
       n_speakers: finalChunk?.n_speakers,
