@@ -312,6 +312,70 @@ console.log(result.text);      // Full transcription
 console.log(result.language);  // Detected language
 ```
 
+### Upload Size — Automatic Downscaling
+
+Both `transcribe` and `transcribeStream` downscale the audio to **16kHz mono**
+before uploading. The backend converts to 16kHz mono regardless, so this does not
+change the transcription — it just stops you from sending bytes that are about to
+be discarded. A 44.1kHz stereo source shrinks ~5.5x.
+
+This matters because a CDN sits in front of the API and rejects request bodies
+over its per-plan cap (100MB on Cloudflare Free/Pro) at the edge, with a
+`413 Content Too Large` the server never sees. In terms of what fits in 100MB:
+
+| Uploaded as | Bitrate | Fits in 100MB |
+|---|---|---|
+| 44.1kHz stereo 16-bit WAV | 176 KB/s | ~9.5 min |
+| 16kHz mono 16-bit WAV (what the SDK sends) | 32 KB/s | ~52 min |
+
+```typescript
+// Default: convert only when it is likely to matter (files over 4MiB).
+await client.stt.transcribeStream(audioBlob, { language: 'en' });
+
+// Always convert, whatever the size.
+await client.stt.transcribe(audioBlob, { preprocess: 'always' });
+
+// Send the exact bytes you passed in.
+await client.stt.transcribe(audioBlob, { preprocess: 'never' });
+
+// Tune the threshold, or the target rate.
+await client.stt.transcribe(audioBlob, {
+  preprocess: 'auto',
+  transcode: { minBytes: 512 * 1024, sampleRate: 16000 },
+});
+```
+
+Conversion is skipped automatically — and the original bytes uploaded unchanged —
+when any of these hold, so you never need to branch on environment or format:
+
+- there is no Web Audio implementation (Node, or a very old browser);
+- the file is under `transcode.minBytes` and `preprocess` is `'auto'`;
+- the source is already compressed tightly enough that PCM would be **larger**
+  (an MP3 or Opus file, typically);
+- the container cannot be decoded, or decoding fails.
+
+You can run the conversion yourself, e.g. to show the saving before uploading:
+
+```typescript
+import { preprocessForAsr } from '@audarai/sdk';
+
+const { data, applied, reason, originalBytes, bytes } = await preprocessForAsr(file, 'always');
+console.log(applied ? `${originalBytes} → ${bytes} bytes` : `skipped: ${reason}`);
+```
+
+**Beyond ~52 minutes** of audio, downscaling alone is not enough for the edge
+cap. Use the presigned direct-to-S3 upload instead: `POST
+/v1/speech/audio/uploads` returns an `upload_id` plus a URL to `PUT` the bytes
+straight to S3, and the transcription endpoints accept that `upload_id` in place
+of the file. The two compose — downscale first, then upload the smaller result.
+
+> **Not yet implemented:** FLAC / Opus output, which would shrink another 2–8x.
+> Browsers ship no native encoder for either, so it needs a wasm codec or a
+> hand-written Ogg muxer over WebCodecs; this SDK has no runtime dependencies and
+> that is worth keeping. 16kHz mono WAV captures most of the win with universal
+> support. If your audio is long enough for the difference to matter, encode to
+> Opus yourself before calling the SDK and pass `preprocess: 'never'`.
+
 ### Real-time Transcription (WebSocket)
 
 For live microphone input with sub-second latency.
