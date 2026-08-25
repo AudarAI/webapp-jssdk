@@ -1,5 +1,15 @@
 import type { AudioPreprocess, TranscodeOptions } from "./audio";
 
+/**
+ * Whether to send the audio straight to object storage instead of through the API.
+ *
+ * A CDN fronts the API and rejects request bodies over its per-plan cap (100MB
+ * on Cloudflare Free/Pro) at the edge — a 413 the server never sees, which no
+ * server-side setting can lift. `"auto"` routes around it only for audio above
+ * `uploadThresholdBytes`; small uploads keep the single-request path.
+ */
+export type ViaUpload = "auto" | "always" | "never";
+
 export interface TokenData {
   token: string;
   expires_in: number;
@@ -260,6 +270,16 @@ export interface TranscribeOptions {
   preprocess?: AudioPreprocess;
   /** Target sample rate / size threshold for `preprocess`. */
   transcode?: TranscodeOptions;
+  /**
+   * Route large audio around the CDN via a presigned direct-to-storage upload.
+   * Default `"auto"` — only for audio above `uploadThresholdBytes`.
+   *
+   * Under `"auto"`, a deployment without object storage configured falls back to
+   * the direct path rather than failing; `"always"` surfaces the error instead.
+   */
+  viaUpload?: ViaUpload;
+  /** Size above which `viaUpload: "auto"` uses storage. Default 80MiB. */
+  uploadThresholdBytes?: number;
 }
 
 export interface TranscribeStreamOptions {
@@ -285,6 +305,16 @@ export interface TranscribeStreamOptions {
   preprocess?: AudioPreprocess;
   /** Target sample rate / size threshold for `preprocess`. */
   transcode?: TranscodeOptions;
+  /**
+   * Route large audio around the CDN via a presigned direct-to-storage upload.
+   * Default `"auto"` — only for audio above `uploadThresholdBytes`.
+   *
+   * Under `"auto"`, a deployment without object storage configured falls back to
+   * the direct path rather than failing; `"always"` surfaces the error instead.
+   */
+  viaUpload?: ViaUpload;
+  /** Size above which `viaUpload: "auto"` uses storage. Default 80MiB. */
+  uploadThresholdBytes?: number;
 }
 
 // ── STT SSE stream message types ─────────────────────────────────────────────

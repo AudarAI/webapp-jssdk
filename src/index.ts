@@ -19,7 +19,7 @@ export { AccountApi } from "./account";
 export { TenantApi } from "./tenant";
 export { AppApi } from "./app";
 export { WebhookApi } from "./webhook";
-export type { TranscribeResult } from "./stt";
+export type { TranscribeResult, AudioUploadTicket } from "./stt";
 export type { TranslationResult } from "./translation";
 export type {
   AudaraiClientConfig,
@@ -38,6 +38,7 @@ export type {
   TimedStreamEvent,
   TranscribeOptions,
   TranscribeStreamOptions,
+  ViaUpload,
   TranscribeStreamChunk,
   TranscribeStreamHandlers,
   ConnectSttWebSocketOptions,
