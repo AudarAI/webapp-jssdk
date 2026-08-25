@@ -1,3 +1,4 @@
+import { AudioPreprocess, TranscodeOptions, TranscodeResult, preprocessForAsr } from "./audio";
 import { HttpClient } from "./client";
 import {
   ConnectSttWebSocketOptions,
@@ -95,6 +96,31 @@ export class SttWebSocket {
   }
 }
 
+/**
+ * Downscale the audio if worthwhile, then attach it as the `file` part.
+ *
+ * The filename is set explicitly rather than left to FormData: the server picks
+ * its duration-probe strategy from the extension, and duration is what gets
+ * billed. A converted blob with the original `.m4a` name would send the probe
+ * down the wrong path, and an unnamed Blob would arrive as "blob".
+ */
+async function appendAsrAudio(
+  form: FormData,
+  audio: Blob | File,
+  mode: AudioPreprocess | undefined,
+  options: TranscodeOptions | undefined,
+): Promise<TranscodeResult> {
+  const result = await preprocessForAsr(audio, mode ?? "auto", options ?? {});
+  form.append("file", result.data, asrUploadName(audio, result.applied));
+  return result;
+}
+
+function asrUploadName(original: Blob | File, converted: boolean): string {
+  const name = (original as File).name || "audio";
+  if (!converted) return name;
+  return `${name.replace(/\.[^./\\]*$/, "")}.wav`;
+}
+
 export class SttApi {
   constructor(private readonly _http: HttpClient) {}
 
@@ -105,9 +131,9 @@ export class SttApi {
 
   /** Transcribe an audio file. Returns transcription result. */
   async transcribe(audio: Blob | File, options: TranscribeOptions = {}): Promise<TranscribeResult> {
-    const { provider, ...fields } = options;
+    const { provider, preprocess, transcode, ...fields } = options;
     const form = new FormData();
-    form.append("file", audio);
+    await appendAsrAudio(form, audio, preprocess, transcode);
     if (fields.language) form.append("language", fields.language);
     if (fields.context) form.append("context", fields.context);
     if (fields.forced_alignment != null) form.append("forced_alignment", String(fields.forced_alignment));
@@ -136,9 +162,9 @@ export class SttApi {
     options: TranscribeStreamOptions = {},
     handlers: TranscribeStreamHandlers = {},
   ): Promise<TranscribeResult> {
-    const { provider, language, forced_alignment, asr_model, diarize_model } = options;
+    const { provider, language, forced_alignment, asr_model, diarize_model, preprocess, transcode } = options;
     const form = new FormData();
-    form.append("file", audio);
+    await appendAsrAudio(form, audio, preprocess, transcode);
     if (language) form.append("language", language);
     if (forced_alignment != null) form.append("forced_alignment", String(forced_alignment));
     if (asr_model) form.append("asr_model", asr_model);

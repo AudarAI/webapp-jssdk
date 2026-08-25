@@ -1,3 +1,5 @@
+import type { AudioPreprocess, TranscodeOptions } from "./audio";
+
 export interface TokenData {
   token: string;
   expires_in: number;
@@ -245,6 +247,19 @@ export interface TranscribeOptions {
   asr_model?: string;
   /** Diarization mode: "none" | "audar-diarization-v1" (words + speakers) | "speakers" (speakers only, batch route only). Requires a model with `supports_diarize`. */
   diarize_model?: string;
+  /**
+   * Downscale the audio to 16kHz mono before uploading. Default `"auto"`.
+   *
+   * The server converts to 16kHz mono regardless, so doing it here does not
+   * change the transcription — it just avoids sending bytes that are about to be
+   * discarded (~5.5x for a 44.1kHz stereo source). `"auto"` only converts files
+   * above `transcode.minBytes`; `"never"` uploads the bytes untouched.
+   *
+   * Requires Web Audio; outside a browser it is a silent no-op.
+   */
+  preprocess?: AudioPreprocess;
+  /** Target sample rate / size threshold for `preprocess`. */
+  transcode?: TranscodeOptions;
 }
 
 export interface TranscribeStreamOptions {
@@ -257,6 +272,19 @@ export interface TranscribeStreamOptions {
   asr_model?: string;
   /** Diarization mode: "none" | "audar-diarization-v1" (words + speakers). "speakers" is rejected on the stream route. Requires a model with `supports_diarize`. */
   diarize_model?: string;
+  /**
+   * Downscale the audio to 16kHz mono before uploading. Default `"auto"`.
+   *
+   * The server converts to 16kHz mono regardless, so doing it here does not
+   * change the transcription — it just avoids sending bytes that are about to be
+   * discarded (~5.5x for a 44.1kHz stereo source). `"auto"` only converts files
+   * above `transcode.minBytes`; `"never"` uploads the bytes untouched.
+   *
+   * Requires Web Audio; outside a browser it is a silent no-op.
+   */
+  preprocess?: AudioPreprocess;
+  /** Target sample rate / size threshold for `preprocess`. */
+  transcode?: TranscodeOptions;
 }
 
 // ── STT SSE stream message types ─────────────────────────────────────────────

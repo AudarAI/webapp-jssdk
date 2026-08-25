@@ -3,6 +3,8 @@ export { RelayAuth } from "./auth";
 export type { RelayAuthConfig, AuthStorage, TokenSet } from "./auth";
 export { TtsApi } from "./tts";
 export { SttApi, SttWebSocket } from "./stt";
+export { canTranscodeAudio, encodeWav, preprocessForAsr, transcodeToAsrWav } from "./audio";
+export type { AudioPreprocess, TranscodeOptions, TranscodeResult } from "./audio";
 export { LlmApi } from "./llm";
 export { TranslationApi, TranslationWebSocket } from "./translation";
 export { AgentApi } from "./agent";
