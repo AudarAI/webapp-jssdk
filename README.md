@@ -363,11 +363,46 @@ const { data, applied, reason, originalBytes, bytes } = await preprocessForAsr(f
 console.log(applied ? `${originalBytes} → ${bytes} bytes` : `skipped: ${reason}`);
 ```
 
-**Beyond ~52 minutes** of audio, downscaling alone is not enough for the edge
-cap. Use the presigned direct-to-S3 upload instead: `POST
-/v1/speech/audio/uploads` returns an `upload_id` plus a URL to `PUT` the bytes
-straight to S3, and the transcription endpoints accept that `upload_id` in place
-of the file. The two compose — downscale first, then upload the smaller result.
+### Large Files — Automatic Direct-to-Storage Upload
+
+Downscaling alone tops out around ~52 minutes of audio. Past that, the SDK routes
+the upload **around** the CDN instead: it mints a presigned URL, PUTs the bytes
+straight to object storage, and sends only the resulting `upload_id` to the
+transcription endpoint. The two compose — downscale first, upload the smaller
+result.
+
+This is automatic above 80MiB. **No code change is needed** to benefit:
+
+```typescript
+// Files over 80MiB go via storage; smaller ones use the single-request path.
+await client.stt.transcribeStream(hugeFile, { language: 'en' });
+```
+
+```typescript
+// Force it, whatever the size — errors surface instead of falling back.
+await client.stt.transcribe(file, { viaUpload: 'always' });
+
+// Opt out entirely, or move the threshold.
+await client.stt.transcribe(file, { viaUpload: 'never' });
+await client.stt.transcribe(file, { uploadThresholdBytes: 32 * 1024 * 1024 });
+```
+
+Under the default `'auto'`, if the deployment has no object storage configured
+(the endpoint answers 503) or the PUT fails, the SDK **falls back to the direct
+path** rather than erroring — a body under the edge cap still succeeds, so
+falling back is never worse than not having tried. `'always'` skips the fallback
+and surfaces the real failure.
+
+The pieces are also available directly:
+
+```typescript
+const ticket = await client.stt.uploadAudio(blob, 'meeting.wav');  // mint + PUT
+await client.stt.transcribe(blob, { viaUpload: 'never' });         // ...or drive it yourself
+await client.stt.deleteUpload(ticket.upload_id);                   // release early (optional)
+```
+
+Uploads stay redeemable until they expire, so a failed transcription can be
+retried without re-uploading.
 
 > **Not yet implemented:** FLAC / Opus output, which would shrink another 2–8x.
 > Browsers ship no native encoder for either, so it needs a wasm codec or a

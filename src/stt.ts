@@ -1,5 +1,6 @@
-import { AudioPreprocess, TranscodeOptions, TranscodeResult, preprocessForAsr } from "./audio";
+import { AudioPreprocess, TranscodeOptions, preprocessForAsr } from "./audio";
 import { HttpClient } from "./client";
+import { ApiError } from "./errors";
 import {
   ConnectSttWebSocketOptions,
   ModelInfo,
@@ -11,6 +12,7 @@ import {
   TranscribeStreamHandlers,
   TranscribeStreamOptions,
   TranscriptionSegment,
+  ViaUpload,
   WordTimestamp,
 } from "./types";
 
@@ -96,33 +98,111 @@ export class SttWebSocket {
   }
 }
 
-/**
- * Downscale the audio if worthwhile, then attach it as the `file` part.
- *
- * The filename is set explicitly rather than left to FormData: the server picks
- * its duration-probe strategy from the extension, and duration is what gets
- * billed. A converted blob with the original `.m4a` name would send the probe
- * down the wrong path, and an unnamed Blob would arrive as "blob".
- */
-async function appendAsrAudio(
-  form: FormData,
-  audio: Blob | File,
-  mode: AudioPreprocess | undefined,
-  options: TranscodeOptions | undefined,
-): Promise<TranscodeResult> {
-  const result = await preprocessForAsr(audio, mode ?? "auto", options ?? {});
-  form.append("file", result.data, asrUploadName(audio, result.applied));
-  return result;
-}
-
 function asrUploadName(original: Blob | File, converted: boolean): string {
   const name = (original as File).name || "audio";
   if (!converted) return name;
   return `${name.replace(/\.[^./\\]*$/, "")}.wav`;
 }
 
+/** A minted direct-to-storage upload slot (POST /v1/speech/audio/uploads). */
+export interface AudioUploadTicket {
+  upload_id: string;
+  /** Presigned URL. PUT the raw bytes here — not multipart, no Authorization header. */
+  upload_url: string;
+  method: string;
+  expires_in: number;
+  max_bytes: number;
+}
+
+/**
+ * Above this many bytes, route the audio around the API and straight to storage.
+ *
+ * A CDN fronts the API and rejects request bodies over its per-plan cap (100MB on
+ * Cloudflare Free/Pro) at the edge, returning 413 before the server sees the
+ * request. 80MB leaves headroom for multipart framing and the other form fields.
+ */
+const DEFAULT_UPLOAD_THRESHOLD = 80 * 1024 * 1024;
+
 export class SttApi {
   constructor(private readonly _http: HttpClient) {}
+
+  // ── Direct-to-storage upload (for audio past the CDN request-body cap) ────
+
+  /**
+   * Mint an upload slot. Prefer {@link uploadAudio}, which also performs the PUT.
+   *
+   * Returns 503 on deployments where object storage isn't configured; large
+   * uploads then fall back to going through the API, where the edge cap applies.
+   */
+  async createUpload(filename: string, contentType?: string): Promise<AudioUploadTicket> {
+    return this._http.request<AudioUploadTicket>("POST", "/v1/speech/audio/uploads", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename, content_type: contentType }),
+    });
+  }
+
+  /** Release an upload and its stored object. Optional — uploads expire on their own. */
+  async deleteUpload(uploadId: string): Promise<void> {
+    await this._http.request("DELETE", `/v1/speech/audio/uploads/${encodeURIComponent(uploadId)}`);
+  }
+
+  /**
+   * Mint a slot and PUT `audio` straight to object storage, bypassing the API
+   * (and therefore the CDN body cap). Returns the ticket; pass its `upload_id`
+   * to `transcribe` / `transcribeStream` in place of the file.
+   *
+   * The PUT deliberately carries no Authorization header — the signature is in
+   * the URL's query string, and adding headers the signature doesn't cover is a
+   * common cause of SignatureDoesNotMatch.
+   */
+  async uploadAudio(audio: Blob, filename: string, contentType?: string): Promise<AudioUploadTicket> {
+    const ticket = await this.createUpload(filename, contentType ?? audio.type ?? undefined);
+    const res = await fetch(ticket.upload_url, { method: ticket.method || "PUT", body: audio });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new ApiError(`Upload to storage failed: ${res.status} ${detail}`.trim(), res.status, res.status);
+    }
+    return ticket;
+  }
+
+  /**
+   * Downscale the audio if worthwhile, then attach it to `form` — as a direct
+   * `file` part, or as an `upload_id` when it is large enough that the edge
+   * would reject the body.
+   *
+   * The filename is set explicitly rather than left to FormData: the server picks
+   * its duration-probe strategy from the extension, and duration is what gets
+   * billed. A converted blob with the original `.m4a` name would send the probe
+   * down the wrong path, and an unnamed Blob would arrive as "blob".
+   */
+  private async _attachAudio(
+    form: FormData,
+    audio: Blob | File,
+    options: { preprocess?: AudioPreprocess; transcode?: TranscodeOptions; viaUpload?: ViaUpload; uploadThresholdBytes?: number },
+  ): Promise<void> {
+    const pre = await preprocessForAsr(audio, options.preprocess ?? "auto", options.transcode ?? {});
+    const name = asrUploadName(audio, pre.applied);
+
+    const mode = options.viaUpload ?? "auto";
+    const threshold = options.uploadThresholdBytes ?? DEFAULT_UPLOAD_THRESHOLD;
+    const wantsUpload = mode === "always" || (mode === "auto" && pre.data.size > threshold);
+
+    if (wantsUpload) {
+      try {
+        const ticket = await this.uploadAudio(pre.data, name);
+        form.append("upload_id", ticket.upload_id);
+        return;
+      } catch (e) {
+        // 'always' means the caller has decided; surface the real failure.
+        if (mode === "always") throw e;
+        // Otherwise fall through to a direct upload. Storage may simply not be
+        // configured on this deployment, and a body under the edge cap still
+        // succeeds — falling back is never worse than not having tried.
+      }
+    }
+
+    form.append("file", pre.data, name);
+  }
 
   /** List available STT models registered in model_management. */
   async listModels(): Promise<ModelInfo[]> {
@@ -131,9 +211,9 @@ export class SttApi {
 
   /** Transcribe an audio file. Returns transcription result. */
   async transcribe(audio: Blob | File, options: TranscribeOptions = {}): Promise<TranscribeResult> {
-    const { provider, preprocess, transcode, ...fields } = options;
+    const { provider, preprocess, transcode, viaUpload, uploadThresholdBytes, ...fields } = options;
     const form = new FormData();
-    await appendAsrAudio(form, audio, preprocess, transcode);
+    await this._attachAudio(form, audio, { preprocess, transcode, viaUpload, uploadThresholdBytes });
     if (fields.language) form.append("language", fields.language);
     if (fields.context) form.append("context", fields.context);
     if (fields.forced_alignment != null) form.append("forced_alignment", String(fields.forced_alignment));
@@ -162,9 +242,9 @@ export class SttApi {
     options: TranscribeStreamOptions = {},
     handlers: TranscribeStreamHandlers = {},
   ): Promise<TranscribeResult> {
-    const { provider, language, forced_alignment, asr_model, diarize_model, preprocess, transcode } = options;
+    const { provider, language, forced_alignment, asr_model, diarize_model, preprocess, transcode, viaUpload, uploadThresholdBytes } = options;
     const form = new FormData();
-    await appendAsrAudio(form, audio, preprocess, transcode);
+    await this._attachAudio(form, audio, { preprocess, transcode, viaUpload, uploadThresholdBytes });
     if (language) form.append("language", language);
     if (forced_alignment != null) form.append("forced_alignment", String(forced_alignment));
     if (asr_model) form.append("asr_model", asr_model);
