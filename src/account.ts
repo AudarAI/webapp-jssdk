@@ -68,7 +68,9 @@ export class AccountApi {
     });
   }
 
-  /** Update an API key's allowed_origins. */
+  /** Update an API key's owner-editable fields (allowed_origins, description).
+   *  Partial: omitted fields keep their current value. Owner only — the API
+   *  returns 403 for a key belonging to another user in the tenant. */
   async updateApiKey(apiKeyId: string, data: UpdateApiKeyRequest): Promise<ApiKeyItem> {
     return this._http.request<ApiKeyItem>(
       "PATCH",

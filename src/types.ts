@@ -1500,6 +1500,8 @@ export interface GuestLoginResponse {
 
 export interface CreateApiKeyRequest {
   name: string;
+  /** Optional free-text note describing what the key is for (max 500 chars). */
+  description?: string | null;
   expires_at?: string;
   key_type?: "secret" | "publishable";
   allowed_origins?: string[];
@@ -1512,13 +1514,22 @@ export interface CreateApiKeyResponse {
   created_at: number;
 }
 
+/**
+ * Partial update — omitted fields are left unchanged. Send `description: null`
+ * to clear the description; omit `allowed_origins` to keep the key's current
+ * origin restrictions.
+ */
 export interface UpdateApiKeyRequest {
-  allowed_origins: string[];
+  allowed_origins?: string[];
+  /** Free-text note describing what the key is for (max 500 chars). */
+  description?: string | null;
 }
 
 export interface ApiKeyItem {
   id: string;
   name: string;
+  /** Owner-editable note describing what the key is for. */
+  description: string | null;
   key: string | null;
   status: "active" | "revoked";
   key_type: "secret" | "publishable";
