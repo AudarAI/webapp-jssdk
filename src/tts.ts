@@ -103,6 +103,7 @@ export class TtsApi {
       sample_rate: number;
       duration_ms: number;
       audio_base64: string;
+      text?: string;
       marks: TimedSynthesisResult["marks"];
     }>("POST", "/v1/speech/audio/speech", {
       headers: { "Content-Type": "application/json" },
@@ -114,6 +115,9 @@ export class TtsApi {
       sampleRate: res.sample_rate,
       durationMs: res.duration_ms,
       audioBase64: res.audio_base64,
+      // "" from a server that predates the field; the caller falls back to the
+      // text it sent, which is right exactly when nothing was normalised.
+      text: res.text ?? "",
       marks: res.marks ?? [],
     };
   }
