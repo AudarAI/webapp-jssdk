@@ -235,12 +235,29 @@ export interface TimedSynthesisResult {
   durationMs: number;
   /** Base64-encoded audio bytes. */
   audioBase64: string;
+  /**
+   * The text that was actually spoken, which `marks` index into.
+   *
+   * The server normalises before synthesis — numbers are verbalised ("3" ->
+   * "three") and markdown is stripped — so this differs from the text you sent
+   * whenever it contained either. Highlight against this, not your own input,
+   * or every offset after the first digit is wrong.
+   *
+   * Empty from a server older than this field; fall back to your input then.
+   */
+  text: string;
   /** Per-chunk timing marks, ordered by `start_ms`. */
   marks: TimestampMark[];
 }
 
 /** A single NDJSON event from {@link TtsApi.synthesizeStreamTimed}. */
 export type TimedStreamEvent =
+  /**
+   * First event of the stream: the text that was actually spoken, which every
+   * `mark` below indexes into. See `TimedSynthesisResult.text` for why it can
+   * differ from the text you sent.
+   */
+  | { type: "text"; text: string }
   | { type: "mark"; index: number; text: string; char_start: number; char_end: number; start_ms: number }
   | { type: "audio"; audio_base64: string }
   | { type: "done"; duration_ms: number };
