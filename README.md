@@ -519,6 +519,12 @@ const agents = await client.agent.listAgents();
 // List platform-wide agents (visible to all authenticated users)
 const platformAgents = await client.agent.listPlatformAgents();
 
+// The default platform agent (chosen by the server)
+const defaultAgent = await client.agent.getDefaultPlatformAgent();
+
+// Platform agents that are also public
+const publicAgents = await client.agent.listPublicPlatformAgents();
+
 // Create an agent
 const agent = await client.agent.createAgent({
   name: 'Support Assistant',

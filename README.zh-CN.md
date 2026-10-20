@@ -389,6 +389,12 @@ const agents = await client.agent.listAgents();
 // 列出平台预设智能体（所有认证用户可见）
 const platformAgents = await client.agent.listPlatformAgents();
 
+// 获取平台默认智能体（由服务端决定）
+const defaultAgent = await client.agent.getDefaultPlatformAgent();
+
+// 列出公开的平台智能体
+const publicAgents = await client.agent.listPublicPlatformAgents();
+
 // 创建智能体
 const agent = await client.agent.createAgent({
   name: '客服助手',
