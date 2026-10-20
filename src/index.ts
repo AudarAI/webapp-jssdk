@@ -29,6 +29,7 @@ export type {
   ListSpeakersResponse,
   SpeakerOperationResponse,
   ModelInfo,
+  VoiceMode,
   WordTimestamp,
   TranscriptionSegment,
   SpeakerTurn,

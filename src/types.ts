@@ -150,7 +150,26 @@ export interface ModelInfo {
   supports_asr_model?: boolean;
   /** STT only: model accepts the `diarize_model` speaker-diarization selector. */
   supports_diarize?: boolean;
+  /**
+   * LLM only: this is an audio-native brain — it takes the caller's waveform
+   * directly, with no ASR in front of it. Only these models give `voice_mode`
+   * anything to choose between; a plain text LLM rejects an audio part.
+   */
+  supports_audio_native?: boolean;
 }
+
+/**
+ * Which voice path an agent runs on.
+ *
+ * - `""` — follow the model's own registry entry (the default, and what every
+ *   agent did before this field existed).
+ * - `"omni"` — audio-native: the brain hears the caller. Only takes effect on a
+ *   model whose `ModelInfo.supports_audio_native` is true. Tools, knowledge
+ *   bases, skills and long-term memory are not available on this path, and a
+ *   multi-agent room falls back to `"pipeline"`.
+ * - `"pipeline"` — classic ASR → LLM → TTS, even on an audio-native model.
+ */
+export type VoiceMode = "" | "omni" | "pipeline";
 
 export interface WordTimestamp {
   text: string;
@@ -731,6 +750,8 @@ export interface AgentCreate {
   tts_model?: string;
   /** LLM model handle. Falls back to tenant/system default when omitted. */
   llm_model?: string;
+  /** Voice path override. Omit (or `""`) to follow the model's registry entry. */
+  voice_mode?: VoiceMode;
   /** Skill UUIDs to bind to this agent. */
   skills?: string[];
   /** Knowledge UUIDs to bind to this agent. */
@@ -765,6 +786,8 @@ export interface AgentUpdate {
   stt_model?: string;
   tts_model?: string;
   llm_model?: string;
+  /** Voice path override. Send `""` to go back to following the model's registry entry. */
+  voice_mode?: VoiceMode;
   skills?: string[];
   knowledge_bindings?: string[];
   channel_bindings?: string[];
@@ -799,6 +822,8 @@ export interface AgentResponse {
   stt_model: string | null;
   tts_model: string | null;
   llm_model: string | null;
+  /** Voice path override; null when the agent follows the model's registry entry. */
+  voice_mode: VoiceMode | null;
   skills: string[];
   knowledge_bindings: string[];
   channel_bindings: string[];

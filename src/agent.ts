@@ -38,6 +38,20 @@ export class AgentApi {
     return this._http.request<AgentResponse[]>("GET", "/v1/agent/agents/platform");
   }
 
+  /**
+   * Returns the platform agent to talk to by default. The server picks it
+   * (the agent flagged `identity.isDefault`, else the oldest platform agent),
+   * so every app agrees. Rejects with a 404 when no platform agent exists.
+   */
+  async getDefaultPlatformAgent(): Promise<AgentResponse> {
+    return this._http.request<AgentResponse>("GET", "/v1/agent/agents/platform/default");
+  }
+
+  /** Returns the platform agents that are also public (`is_public`). */
+  async listPublicPlatformAgents(): Promise<AgentResponse[]> {
+    return this._http.request<AgentResponse[]>("GET", "/v1/agent/agents/platform/public");
+  }
+
   async createAgent(data: AgentCreate): Promise<AgentResponse> {
     return this._http.request<AgentResponse>("POST", "/v1/agent/agents", {
       headers: { "Content-Type": "application/json" },

@@ -372,6 +372,12 @@ const agents = await client.agent.listAgents();
 // عرض الوكلاء على مستوى المنصة (مرئيون لجميع المستخدمين المصادق عليهم)
 const platformAgents = await client.agent.listPlatformAgents();
 
+// الوكيل الافتراضي للمنصة (يحدده الخادم)
+const defaultAgent = await client.agent.getDefaultPlatformAgent();
+
+// وكلاء المنصة العامّون
+const publicAgents = await client.agent.listPublicPlatformAgents();
+
 // إنشاء وكيل
 const agent = await client.agent.createAgent({
   name: 'مساعد الدعم',
