@@ -489,6 +489,82 @@ export interface SttWebSocketHandlers {
   onClose?: (event: CloseEvent) => void;
 }
 
+// ── Voice actions (speech2action) WebSocket message types ───────────────────────
+// Wire protocol of `/v1/speech/voice-actions/ws` — the gateway relays s2a_service's
+// `/v2/s2a/ws/{game}` unchanged (api-webapp docs/services/s2a-service.md).
+
+/** Latency profile: `balanced` decides every 80 ms; `fast` every 40 ms and commits sooner. */
+export type VoiceActionsProfile = "balanced" | "fast";
+
+export interface ConnectVoiceActionsWebSocketOptions {
+  /** Game menu. Default `runner` (Dino Dash: high_jump, long_jump, jump, slide, run). */
+  game?: string;
+  /** Sent in `stream_start`; the server default is `balanced`. */
+  profile?: VoiceActionsProfile;
+  /**
+   * Further `stream_start` tuning options (`max_actions`, `decide_every_ms`, `early_commit`, …),
+   * passed through as-is. The service documents them; leave unset unless measuring.
+   */
+  streamOptions?: Record<string, number | string | boolean>;
+}
+
+export interface VoiceActionsReadyMessage {
+  type: "ready";
+  game: string;
+  /** The game's action menu, in the model's order. */
+  actions: string[];
+}
+
+export interface VoiceActionsEndpointMessage {
+  type: "endpoint";
+  /** `server_vad`: the service decides when a command starts and ends. */
+  mode: string;
+}
+
+/** One move, chosen from the audio alone — execute it immediately. */
+export interface VoiceActionsActionMessage {
+  type: "action";
+  action: string;
+  utterance: number;
+  endpoint?: string;
+}
+
+/** An utterance closed. `actions: []` means speech was heard but no move was chosen. */
+export interface VoiceActionsCommittedMessage {
+  type: "committed";
+  utterance: number;
+  actions: string[];
+}
+
+/**
+ * Errors arrive in two shapes: `{type:"error",code,message}` from the service (1013 = the model
+ * is still warming up) and `{code,message}` from the gateway (1008 auth/balance, 1011 backend
+ * closed abnormally). Both are delivered here, followed by the socket closing.
+ */
+export interface VoiceActionsErrorMessage {
+  type: "error";
+  code: number;
+  message: string;
+}
+
+export type VoiceActionsMessage =
+  | VoiceActionsReadyMessage
+  | VoiceActionsEndpointMessage
+  | VoiceActionsActionMessage
+  | VoiceActionsCommittedMessage
+  | VoiceActionsErrorMessage;
+
+export interface VoiceActionsWebSocketHandlers {
+  /** The server is ready. The SDK sends `stream_start` right after this, before any audio. */
+  onReady?: (msg: VoiceActionsReadyMessage) => void;
+  onEndpoint?: (msg: VoiceActionsEndpointMessage) => void;
+  /** A move was chosen. Act on it now — this is the latency-critical message. */
+  onAction?: (msg: VoiceActionsActionMessage) => void;
+  onCommitted?: (msg: VoiceActionsCommittedMessage) => void;
+  onError?: (event: Event | VoiceActionsErrorMessage) => void;
+  onClose?: (event: CloseEvent) => void;
+}
+
 // ── Translation SSE pipeline message types ────────────────────────────────────
 
 export interface TranslationSseStatusMessage {

@@ -288,6 +288,30 @@ stt.sendAudio(pcmBuffer);
 stt.stop();
 ```
 
+### أوامر الألعاب الصوتية (WebSocket)
+
+يختار نموذج speech2action حركة من قائمة اللعبة مباشرة من الصوت — بدون نسخ نصي وبدون كلمات مفتاحية.
+نفّذ `onAction` فور وصوله.
+
+```typescript
+const va = await client.voiceActions.connectWebSocket(
+  { game: 'runner', profile: 'fast' },   // قائمة runner: high_jump، long_jump، jump، slide، run
+  {
+    onReady:     ({ actions })     => console.log('القائمة:', actions),
+    onAction:    ({ action })      => game.perform(action),           // نفّذ فورًا
+    onCommitted: ({ actions })     => console.log('انتهى المقطع:', actions),
+    onError:     (e)               => console.error('خطأ:', e),       // الرمز 1013 = النموذج قيد التهيئة
+    onClose:     ()                => console.log('تم إغلاق الاتصال'),
+  },
+);
+
+// PCM16 أحادي القناة بتردد 16 kHz؛ إطارات 20 ms (640 بايت) تعطي أقل زمن استجابة
+va.sendAudio(pcmFrame);
+
+// لا توجد رسالة إيقاف — إغلاق الاتصال ينهي الجلسة
+va.close();
+```
+
 ---
 
 ## ترجمة الصوت

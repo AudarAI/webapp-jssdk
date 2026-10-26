@@ -305,6 +305,29 @@ stt.sendAudio(pcmBuffer);
 stt.stop();
 ```
 
+### 语音游戏动作（WebSocket）
+
+speech2action 模型直接从音频里选出游戏菜单中的一个动作，不经过转写、不用关键词。收到 `onAction` 立即执行。
+
+```typescript
+const va = await client.voiceActions.connectWebSocket(
+  { game: 'runner', profile: 'fast' },   // runner 菜单：high_jump、long_jump、jump、slide、run
+  {
+    onReady:     ({ actions })     => console.log('菜单:', actions),
+    onAction:    ({ action })      => game.perform(action),           // 立即执行
+    onCommitted: ({ actions })     => console.log('一句话结束:', actions),
+    onError:     (e)               => console.error('错误:', e),       // code 1013 = 模型预热中
+    onClose:     ()                => console.log('连接已关闭'),
+  },
+);
+
+// PCM16、单声道、16 kHz；20 ms（640 字节）一帧延迟最低
+va.sendAudio(pcmFrame);
+
+// 没有 stop 消息——关闭连接即结束会话
+va.close();
+```
+
 ---
 
 ## 音频翻译

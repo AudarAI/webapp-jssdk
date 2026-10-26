@@ -3,6 +3,7 @@ export { RelayAuth } from "./auth";
 export type { RelayAuthConfig, AuthStorage, TokenSet } from "./auth";
 export { TtsApi } from "./tts";
 export { SttApi, SttWebSocket } from "./stt";
+export { VoiceActionsApi, VoiceActionsWebSocket } from "./voiceActions";
 export { canTranscodeAudio, encodeWav, preprocessForAsr, transcodeToAsrWav } from "./audio";
 export type { AudioPreprocess, TranscodeOptions, TranscodeResult } from "./audio";
 export { LlmApi } from "./llm";
@@ -51,6 +52,15 @@ export type {
   SttFinalMessage,
   SttErrorMessage,
   SttWebSocketHandlers,
+  VoiceActionsProfile,
+  ConnectVoiceActionsWebSocketOptions,
+  VoiceActionsMessage,
+  VoiceActionsReadyMessage,
+  VoiceActionsEndpointMessage,
+  VoiceActionsActionMessage,
+  VoiceActionsCommittedMessage,
+  VoiceActionsErrorMessage,
+  VoiceActionsWebSocketHandlers,
   TranslateOptions,
   TranslateHandlers,
   ConnectTranslationWebSocketOptions,
@@ -184,6 +194,7 @@ export { AudaraiError, AuthenticationError, InsufficientBalanceError, RateLimite
 import { AudaraiClient } from "./client";
 import { TtsApi } from "./tts";
 import { SttApi } from "./stt";
+import { VoiceActionsApi } from "./voiceActions";
 import { LlmApi } from "./llm";
 import { TranslationApi } from "./translation";
 import { AgentApi } from "./agent";
@@ -224,6 +235,7 @@ import type { AudaraiClientConfig } from "./types";
 export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient & {
   tts: TtsApi;
   stt: SttApi;
+  voiceActions: VoiceActionsApi;
   llm: LlmApi;
   translation: TranslationApi;
   agent: AgentApi;
@@ -239,6 +251,7 @@ export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient 
   const client = new AudaraiClient(config) as AudaraiClient & {
     tts: TtsApi;
     stt: SttApi;
+    voiceActions: VoiceActionsApi;
     llm: LlmApi;
     translation: TranslationApi;
     agent: AgentApi;
@@ -253,6 +266,7 @@ export function createAudaraiClient(config: AudaraiClientConfig): AudaraiClient 
   };
   client.tts = new TtsApi(client.http);
   client.stt = new SttApi(client.http);
+  client.voiceActions = new VoiceActionsApi(client.http);
   client.llm = new LlmApi(client.http);
   client.translation = new TranslationApi(client.http);
   client.agent = new AgentApi(client.http);
