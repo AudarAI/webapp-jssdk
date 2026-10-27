@@ -435,6 +435,30 @@ stt.sendAudio(pcmBuffer);
 stt.stop();
 ```
 
+### Voice Game Actions (WebSocket)
+
+The speech2action model picks a move from the game's menu straight from the audio — no
+transcript, no keywords. Act on `onAction` the moment it arrives.
+
+```typescript
+const va = await client.voiceActions.connectWebSocket(
+  { game: 'runner', profile: 'fast' },   // runner menu: high_jump, long_jump, jump, slide, run
+  {
+    onReady:     ({ actions })     => console.log('Menu:', actions),
+    onAction:    ({ action })      => game.perform(action),           // execute immediately
+    onCommitted: ({ actions })     => console.log('Utterance closed:', actions),
+    onError:     (e)               => console.error('Error:', e),     // code 1013 = model warming up
+    onClose:     ()                => console.log('Connection closed'),
+  },
+);
+
+// PCM16, mono, 16 kHz; 20 ms (640-byte) frames give the lowest latency
+va.sendAudio(pcmFrame);
+
+// There is no stop message — closing ends the session
+va.close();
+```
+
 ---
 
 ## Audio Translation
