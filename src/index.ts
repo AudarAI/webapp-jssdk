@@ -59,6 +59,7 @@ export type {
   VoiceActionsEndpointMessage,
   VoiceActionsActionMessage,
   VoiceActionsCommittedMessage,
+  VoiceActionsPongMessage,
   VoiceActionsErrorMessage,
   VoiceActionsWebSocketHandlers,
   TranslateOptions,

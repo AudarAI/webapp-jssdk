@@ -316,6 +316,7 @@ const va = await client.voiceActions.connectWebSocket(
     onReady:     ({ actions })     => console.log('菜单:', actions),
     onAction:    ({ action })      => game.perform(action),           // 立即执行
     onCommitted: ({ actions })     => console.log('一句话结束:', actions),
+    onPong:      (_msg, rttMs)     => console.log('网络往返:', rttMs, 'ms'),
     onError:     (e)               => console.error('错误:', e),       // code 1013 = 模型预热中
     onClose:     ()                => console.log('连接已关闭'),
   },
@@ -323,6 +324,9 @@ const va = await client.voiceActions.connectWebSocket(
 
 // PCM16、单声道、16 kHz；20 ms（640 字节）一帧延迟最低
 va.sendAudio(pcmFrame);
+
+// 测网络往返时延（结果在 onPong）；action 消息的 `model_ms` 是服务端模型用时
+va.ping();
 
 // 没有 stop 消息——关闭连接即结束会话
 va.close();

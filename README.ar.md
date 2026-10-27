@@ -300,6 +300,7 @@ const va = await client.voiceActions.connectWebSocket(
     onReady:     ({ actions })     => console.log('القائمة:', actions),
     onAction:    ({ action })      => game.perform(action),           // نفّذ فورًا
     onCommitted: ({ actions })     => console.log('انتهى المقطع:', actions),
+    onPong:      (_msg, rttMs)     => console.log('زمن الذهاب والإياب:', rttMs, 'ms'),
     onError:     (e)               => console.error('خطأ:', e),       // الرمز 1013 = النموذج قيد التهيئة
     onClose:     ()                => console.log('تم إغلاق الاتصال'),
   },
@@ -307,6 +308,9 @@ const va = await client.voiceActions.connectWebSocket(
 
 // PCM16 أحادي القناة بتردد 16 kHz؛ إطارات 20 ms (640 بايت) تعطي أقل زمن استجابة
 va.sendAudio(pcmFrame);
+
+// قياس زمن الذهاب والإياب عبر الشبكة (النتيجة في onPong)؛ رسالة action تحمل `model_ms` = زمن النموذج على الخادم
+va.ping();
 
 // لا توجد رسالة إيقاف — إغلاق الاتصال ينهي الجلسة
 va.close();
