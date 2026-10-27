@@ -527,6 +527,11 @@ export interface VoiceActionsActionMessage {
   action: string;
   utterance: number;
   endpoint?: string;
+  /**
+   * Server-side time, in ms, of the audio frame that produced this move: voice detection plus the
+   * model question(s) it triggered. Excludes the network. Absent on a service that predates it.
+   */
+  model_ms?: number;
 }
 
 /** An utterance closed. `actions: []` means speech was heard but no move was chosen. */
@@ -534,6 +539,12 @@ export interface VoiceActionsCommittedMessage {
   type: "committed";
   utterance: number;
   actions: string[];
+}
+
+/** The answer to `VoiceActionsWebSocket.ping()`: `t` is the ping's own timestamp, echoed. */
+export interface VoiceActionsPongMessage {
+  type: "pong";
+  t: number;
 }
 
 /**
@@ -552,6 +563,7 @@ export type VoiceActionsMessage =
   | VoiceActionsEndpointMessage
   | VoiceActionsActionMessage
   | VoiceActionsCommittedMessage
+  | VoiceActionsPongMessage
   | VoiceActionsErrorMessage;
 
 export interface VoiceActionsWebSocketHandlers {
@@ -561,6 +573,8 @@ export interface VoiceActionsWebSocketHandlers {
   /** A move was chosen. Act on it now — this is the latency-critical message. */
   onAction?: (msg: VoiceActionsActionMessage) => void;
   onCommitted?: (msg: VoiceActionsCommittedMessage) => void;
+  /** The answer to `ping()`. `rttMs`: client → gateway → service → client, in ms. */
+  onPong?: (msg: VoiceActionsPongMessage, rttMs: number) => void;
   onError?: (event: Event | VoiceActionsErrorMessage) => void;
   onClose?: (event: CloseEvent) => void;
 }

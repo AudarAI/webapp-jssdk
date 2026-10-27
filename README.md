@@ -447,6 +447,7 @@ const va = await client.voiceActions.connectWebSocket(
     onReady:     ({ actions })     => console.log('Menu:', actions),
     onAction:    ({ action })      => game.perform(action),           // execute immediately
     onCommitted: ({ actions })     => console.log('Utterance closed:', actions),
+    onPong:      (_msg, rttMs)     => console.log('Network round trip:', rttMs, 'ms'),
     onError:     (e)               => console.error('Error:', e),     // code 1013 = model warming up
     onClose:     ()                => console.log('Connection closed'),
   },
@@ -454,6 +455,10 @@ const va = await client.voiceActions.connectWebSocket(
 
 // PCM16, mono, 16 kHz; 20 ms (640-byte) frames give the lowest latency
 va.sendAudio(pcmFrame);
+
+// Measure the network round trip (answered by onPong); action messages carry the
+// server-side model time as `model_ms`
+va.ping();
 
 // There is no stop message — closing ends the session
 va.close();

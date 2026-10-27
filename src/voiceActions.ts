@@ -44,6 +44,9 @@ export class VoiceActionsWebSocket {
         case "committed":
           handlers.onCommitted?.(msg);
           break;
+        case "pong":
+          if (typeof msg.t === "number") handlers.onPong?.(msg, performance.now() - msg.t);
+          break;
         case "error":
           handlers.onError?.(msg);
           break;
@@ -68,6 +71,16 @@ export class VoiceActionsWebSocket {
   sendAudio(buffer: ArrayBuffer | Int16Array): void {
     if (this._started && this._ws.readyState === WebSocket.OPEN) {
       this._ws.send(buffer instanceof Int16Array ? buffer.buffer : buffer);
+    }
+  }
+
+  /**
+   * Measure the network round trip: the service answers at once with a `pong` (delivered to
+   * `onPong` with the elapsed time), without involving the model. Ignored until the socket is open.
+   */
+  ping(): void {
+    if (this._ws.readyState === WebSocket.OPEN) {
+      this._ws.send(JSON.stringify({ type: "ping", t: performance.now() }));
     }
   }
 
